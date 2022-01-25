@@ -1,7 +1,7 @@
 # gptrun
-Don't feel like coding today?  Use the power of GPT3 to execute any function inside your programs just by giving some doctests.
+Don't feel like coding today?  Use the power of GPT3 to imagine the result of any function. You only need some doctests.
 
-**How is this different from Copilot? Is that what you said?** Copilot generates code that you run.  This beauty uses GPT3 to compute the answer to each function call.
+**How is this different from Github's Copilot? Is that what you're thinking?** Copilot generates code that you run.  This beauty uses GPT3 to compute the answer to each function call.
 
 ## Installation
 ```console

@@ -51,17 +51,17 @@ def sentiment(text):
 
 
 @gptrun  # Use '# doctest: +SKIP' on non-exact samples to avoid failing tests
-def color_by_description(description):
+def color(description):
     """
     Return the CSS color code by its description.
 
-    >>> color_by_description("black")
+    >>> color("black")
     "#000000"
-    >>> color_by_description("white")
+    >>> color("white")
     "#ffffff"
-    >>> color_by_description("deep blue ocean") # doctest: +SKIP
+    >>> color("deep blue ocean") # doctest: +SKIP
     "#003c5f"
-    >>> color_by_description("the color of the sky") # doctest: +SKIP
+    >>> color("the color of the sky") # doctest: +SKIP
     "#87ceeb"
     """
     pass
@@ -87,18 +87,35 @@ def weight(text):
     pass
 
 
-#
-# You can test your functions like so...
-#
-print("TESTING 'color_by_description':")
-color_by_description.test()
+@gptrun
+def motto(character):
+    """
+    Returns an appropriate motto for the user.
 
-#
-# You can use the functions as normal python functions:
-#
-if weight("Harrison Ford") > weight("Mahatma Gandhi"):
-    print(f"No surprises here: {weight('Harrison Ford')=}, {weight('Mahatma Gandhi')=}")
+    >>> motto("Goliath")  # doctest: +SKIP
+    "Very tall, looking for a helmet"
+    >>> motto("Superman")  # doctest: +SKIP
+    "Harder, better, faster, stronger"
+    >>> motto("Dumbo")  # doctest: +SKIP
+    "Don't just fly, soar"
+    """
+    pass
 
-print(f'{capital("Australia")=}')
-print(f'{color_by_description("nipples")=}')
-print(f'{spanish_rhyme("sillón")=}')
+    
+if __name__ == '__main__':
+    #
+    # You can test your functions like so...
+    #
+    print("TESTING 'color':")
+    color.test()
+
+    #
+    # You can use the functions as normal python functions:
+    #
+    if weight("Harrison Ford") > weight("Mahatma Gandhi"):
+        print(f"No surprises here: {weight('Harrison Ford')=}, {weight('Mahatma Gandhi')=}")
+
+    print(f'{capital("Australia")=}')
+    print(f'{color("sun")=}')
+    print(f'{spanish_rhyme("sillón")=}')
+    print(f'{motto("nilp0inter")=}')

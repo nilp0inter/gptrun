@@ -42,7 +42,7 @@ def capital(country):
 
 ```
 
-## Not impressed?
+## Not impressed? 🤔
 
 ```python
 >>> from examples import is_irony

@@ -17,6 +17,22 @@ def capital(country):
     pass
 
 
+@gptrun
+def spanish_rhyme(word):
+    """
+    Return a rhyme given a word (in Spanish).
+
+    >>> spanish_rhyme('cansado') # doctest: +SKIP
+    'preparado'
+    >>> spanish_rhyme('camión') # doctest: +SKIP
+    'melón'
+    >>> spanish_rhyme('adelantó') # doctest: +SKIP
+    'suplantó'
+    """
+    pass
+    
+
+
 @gptrun(default=None)  # If you don't want to raise an exception if GPT3 returns nonsense
 def sentiment(text):
     """
@@ -77,7 +93,6 @@ def weight(text):
 print("TESTING 'color_by_description':")
 color_by_description.test()
 
-
 #
 # You can use the functions as normal python functions:
 #
@@ -86,3 +101,4 @@ if weight("Harrison Ford") > weight("Mahatma Gandhi"):
 
 print(f'{capital("Australia")=}')
 print(f'{color_by_description("nipples")=}')
+print(f'{spanish_rhyme("sillón")=}')

@@ -3,6 +3,10 @@ Don't feel like coding today?  Use the power of GPT3 to imagine the result of an
 
 **How is this different from Github's Copilot? Is that what you're thinking?** Copilot generates code that you run.  This beauty uses GPT3 to compute the answer to each function call.
 
+## How is this useful?
+
+This can be useful for rapid prototyping of AI based systems.  Instead of developing your own model, just mock it with GPT3.
+
 ## Installation
 ```console
 $ pip install git+https://github.com/nilp0inter/gptrun@main

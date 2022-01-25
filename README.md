@@ -49,7 +49,7 @@ False
 
 ```
 
-Look other examples in `examples.py`. And if you came up with more examples just send me a pull request.
+Look other examples in `examples.py`. And if you came up with more, just send me a pull request.
 
 You can adjust GPT3 parameters using the decorator. See `examples.py`.
 

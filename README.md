@@ -42,12 +42,15 @@ def capital(country):
 
 ```
 
-## Not impressed? 🤔
+## Not impressed yet? 🤔
 
 ```python
 >>> from examples import is_irony
 >>> is_irony("If you find me offensive. Then I suggest you quit finding me.")
 True
+>>> is_irony("If you find me offensive. Then I suggest you quit.")
+False
+
 ```
 
 Look other examples in `examples.py`. And if you came up with more send me a pull request.

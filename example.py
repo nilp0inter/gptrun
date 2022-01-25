@@ -1,6 +1,26 @@
 from gptrun import gptrun
 from functools import lru_cache
 
+@gptrun
+def is_irony(text):
+    """
+    Returns True if text contains irony, False otherwise.
+
+    >>> is_irony("I went to the movies last Friday; it was alright.")
+    False
+    >>> is_irony("He was one of the most supremely stupid men I have ever met. He taught me a great deal.")
+    True
+    >>> is_irony("Martha is at home right now.")
+    False
+    >>> is_irony("I didn't have time to write a short letter, so I wrote a long one instead.")
+    True
+    >>> is_irony("Silence is golden. Duct tape is silver.")
+    True
+    >>> is_irony("Since the 1930s, this company has worked alongside communities and clients of all sizes.")
+    False
+    """
+    pass
+
 
 @gptrun(engine="text-curie-001")  # Use other engines for cost and/or precision
 def capital(country):

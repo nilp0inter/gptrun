@@ -42,6 +42,16 @@ def capital(country):
 
 ```
 
+## Not impressed?
+
+```python
+>>> from examples import is_irony
+>>> is_irony("If you find me offensive. Then I suggest you quit finding me.")
+True
+```
+
+Look other examples in `examples.py`. And if you came up with more send me a pull request.
+
 You can adjust GPT3 parameters using the decorator. See `examples.py`.
 
 

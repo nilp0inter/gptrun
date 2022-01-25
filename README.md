@@ -10,7 +10,7 @@ $ pip install git+https://github.com/nilp0inter/gptrun@main
 
 ## Example
 
-First you need an OPENAI API key.
+First you need an OPENAI API key. Get it here: https://openai.com/api/
 
 ```console
 $ export OPENAI_API_KEY="<your OPENAI key>"

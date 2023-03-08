@@ -4,3 +4,5 @@
 "Harder, better, faster, stronger"
 >>> motto("Dumbo")  # doctest: +SKIP
 "Don't just fly, soar"
+>>> motto("Spiderman")  # doctest: +SKIP
+"With great power comes great responsibility"

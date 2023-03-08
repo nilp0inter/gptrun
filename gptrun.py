@@ -1,8 +1,9 @@
-import doctest
 import ast
+import doctest
+import functools
 import inspect
 import os
-import functools
+import random
 
 import openai
 
@@ -22,7 +23,7 @@ def gptrun(*args, **kwargs):
     :param on_failure: A function to call if GPT3 fails to return a valid output.
     :param engine: The OpenAI engine to use.
     :param example_filepath: A path to a file containing external examples instead of using the docstring.
-    :param num_examples: The number of examples to use. If None, all examples are used.
+    :param num_examples: The number of examples to use. If 0, all examples are used.
     :param completion_kwargs: Additional keyword arguments to pass to the OpenAI API.
 
     """
@@ -39,10 +40,18 @@ def RAISE_EXCEPTION():
 
 
 class GPTRunner:
-    def __init__(self, f, on_failure=RAISE_EXCEPTION, engine="text-davinci-001", example_filepath=None, num_examples=None, **completion_kwargs):
+    def __init__(self, f,
+                 engine="text-davinci-001",
+                 on_failure=RAISE_EXCEPTION,
+                 example_filepath=None,
+                 num_examples=0,
+                 **completion_kwargs):
         """See `gptrun` decorator."""
         self.name = f.__name__
         self.summary = inspect.getdoc(f).splitlines()[0]
+
+        self.engine = engine
+        self.on_failure = on_failure
 
         # Examples can be provided from an external `example_filepath` or as a docstring body.
         examples = ""
@@ -53,16 +62,14 @@ class GPTRunner:
             examples = f.__doc__
         self.examples = doctest.DocTestParser().get_examples(examples)
 
-        self.on_failure = on_failure
-
-        self.engine = engine
+        self.num_examples = min(num_examples or len(self.examples), len(self.examples))  # Cap to the number of examples
         self.completion_kwargs = completion_kwargs
 
     def __call__(self, *args, **kwargs):
         args = [repr(a) for a in args]
         kwargs = [f'{k}={v!r}' for k, v in kwargs.items()]
-        call = f'>>> {self.name}({", ".join(args+kwargs)})'
-        examples = "".join(f'>>> {e.source.split("#")[0]}{e.want}' for e in self.examples)
+        call = f'>>> {self.name}({", ".join(args + kwargs)})'
+        examples = "".join(f'>>> {e.source.split("#")[0]}{e.want}' for e in random.sample(self.examples, k=self.num_examples))
         prompt = examples + call
         response = openai.Completion.create(
           engine=self.engine,

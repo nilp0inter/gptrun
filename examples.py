@@ -125,8 +125,8 @@ if __name__ == '__main__':
     #
     # You can use the functions as normal python functions:
     #
-    if weight("Harrison Ford") > weight("Mahatma Gandhi"):
-        print(f"No surprises here: {weight('Harrison Ford')=}, {weight('Mahatma Gandhi')=}")
+    if weight("Wilson Fisk") > weight("Mahatma Gandhi"):
+        print(f"No surprises here: {weight('Wilson Fisk')=}, {weight('Mahatma Gandhi')=}")
 
     print(f'{capital("Australia")=}')
     print(f'{color("sun")=}')

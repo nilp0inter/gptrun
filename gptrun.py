@@ -13,6 +13,19 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 def gptrun(*args, **kwargs):
+    """
+    A decorator that transform a function without code but with a docstring
+    containing examples into a function that calls OpenAI's API and perform few
+    shot prompting on the examples.
+
+    :param f: The function to transform.
+    :param on_failure: A function to call if GPT3 fails to return a valid output.
+    :param engine: The OpenAI engine to use.
+    :param example_filepath: A path to a file containing external examples instead of using the docstring.
+    :param num_examples: The number of examples to use. If None, all examples are used.
+    :param completion_kwargs: Additional keyword arguments to pass to the OpenAI API.
+
+    """
     if kwargs:
         def gptrun(f):
             return functools.wraps(f)(GPTRunner(f, **kwargs))
@@ -26,7 +39,8 @@ def RAISE_EXCEPTION():
 
 
 class GPTRunner:
-    def __init__(self, f, on_failure=RAISE_EXCEPTION, engine="text-davinci-001", example_filepath=None, **completion_kwargs):
+    def __init__(self, f, on_failure=RAISE_EXCEPTION, engine="text-davinci-001", example_filepath=None, num_examples=None, **completion_kwargs):
+        """See `gptrun` decorator."""
         self.name = f.__name__
         self.summary = inspect.getdoc(f).splitlines()[0]
 

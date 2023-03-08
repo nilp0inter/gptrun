@@ -107,17 +107,10 @@ def weight(text):
     pass
 
 
-@gptrun
+@gptrun(example_filepath="./motto.examples")
 def motto(character):
     """
     Returns an appropriate motto for the user.
-
-    >>> motto("Goliath")  # doctest: +SKIP
-    "Very tall, looking for a helmet"
-    >>> motto("Superman")  # doctest: +SKIP
-    "Harder, better, faster, stronger"
-    >>> motto("Dumbo")  # doctest: +SKIP
-    "Don't just fly, soar"
     """
     pass
 

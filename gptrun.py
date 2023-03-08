@@ -21,20 +21,28 @@ def gptrun(*args, **kwargs):
         return functools.wraps(args[0])(GPTRunner(args[0]))
 
 
-RAISE_EXCEPTION = object()
+def RAISE_EXCEPTION():
+    raise ValueError("GPT3 returned bad output")
+
 
 class GPTRunner:
-    def __init__(self, f, default=RAISE_EXCEPTION, engine="text-davinci-001", temperature=0.0, max_tokens=64, frequency_penalty=0, presence_penalty=0):
+    def __init__(self, f, on_failure=RAISE_EXCEPTION, engine="text-davinci-001", example_filepath=None, **completion_kwargs):
         self.name = f.__name__
         self.summary = inspect.getdoc(f).splitlines()[0]
-        self.examples = doctest.DocTestParser().get_examples(f.__doc__)
-        self.default = default
+
+        # Examples can be provided from an external `example_filepath` or as a docstring body.
+        examples = ""
+        if example_filepath is not None:
+            with open(example_filepath) as example_file:
+                examples = example_file.read()
+        else:
+            examples = f.__doc__
+        self.examples = doctest.DocTestParser().get_examples(examples)
+
+        self.on_failure = on_failure
 
         self.engine = engine
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.frequency_penalty = frequency_penalty
-        self.presence_penalty = presence_penalty
+        self.completion_kwargs = completion_kwargs
 
     def __call__(self, *args, **kwargs):
         args = [repr(a) for a in args]
@@ -45,19 +53,16 @@ class GPTRunner:
         response = openai.Completion.create(
           engine=self.engine,
           prompt=prompt,
-          temperature=self.temperature,
-          max_tokens=self.max_tokens,
           top_p=1,
-          frequency_penalty=self.frequency_penalty,
-          presence_penalty=self.presence_penalty
+          **self.completion_kwargs
         )
         try:
             return ast.literal_eval(response['choices'][0]['text'].strip())
-        except Exception as exc:
-            if self.default is RAISE_EXCEPTION:
-                raise ValueError("GPT3 returned bad output") from exc
-            else:
-                return self.default
+        except Exception as gpt_exception:
+            try:
+                return self.on_failure()
+            except Exception as user_exception:
+                raise user_exception from gpt_exception
 
     def _get_tests(self):
         for i in range(len(self.examples)):
@@ -73,11 +78,8 @@ class GPTRunner:
             response = openai.Completion.create(
               engine=self.engine,
               prompt=prompt,
-              temperature=self.temperature,
-              max_tokens=self.max_tokens,
               top_p=1,
-              frequency_penalty=self.frequency_penalty,
-              presence_penalty=self.presence_penalty
+              **self.completion_kwargs
             )
             try:
                 current = ast.literal_eval(response['choices'][0]['text'].strip())

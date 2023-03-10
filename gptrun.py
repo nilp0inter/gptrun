@@ -1,11 +1,11 @@
 from dataclasses import dataclass
+from itertools import chain
 import ast
 import doctest
 import functools
-import inspect
-import inspect
 import os
 import random
+import sys
 import textwrap
 
 import openai
@@ -86,6 +86,27 @@ def gpt3run(*args, **kwargs):
         return gpt3run
     else:
         return functools.wraps(args[0])(CompletionAPIRunner(args[0]))
+
+def chatgptrun(*args, **kwargs):
+    """
+    A decorator that transform a function without code but with a docstring
+    containing examples into a function that calls OpenAI's generation API and
+    perform few shot prompting on the examples.
+
+    :param f: The function to transform.
+    :param on_failure: A function to call if GPT3 fails to return a valid output.
+    :param engine: The OpenAI engine to use.
+    :param example_filepath: A path to a file containing external examples instead of using the docstring.
+    :param num_examples: The number of examples to use. If 0, all examples are used.
+    :param completion_kwargs: Additional keyword arguments to pass to the OpenAI API.
+
+    """
+    if kwargs:
+        def chatgptrun(f):
+            return functools.wraps(f)(ChatCompletionAPIRunner(f, **kwargs))
+        return chatgptrun
+    else:
+        return functools.wraps(args[0])(ChatCompletionAPIRunner(args[0]))
 
 
 def RAISE_EXCEPTION():
@@ -183,6 +204,110 @@ class CompletionAPIRunner:
             )
             try:
                 current = ast.literal_eval(response['choices'][0]['text'].strip())
+            except Exception:
+                assert False, "GPT3 returned bad output"
+                
+            wanted = ast.literal_eval(wanted)
+            assert current == wanted, f'In test #{i}: {prompt}, and got {current!r} instead of {wanted!r}'
+            print('.', end='')
+        print('')
+
+
+class ChatCompletionAPIRunner:
+    """Infere call result using OpenAI's chat API."""
+    def __init__(self, f,
+                 engine="gpt-3.5-turbo",
+                 on_failure=RAISE_EXCEPTION,
+                 example_filepath=None,
+                 num_examples=0,
+                 **chat_kwargs):
+        """See `chatgptrun` decorator."""
+        self.name = f.__name__
+
+        self.engine = engine
+        self.on_failure = on_failure
+
+        # Examples can be provided from an external `example_filepath` or as a docstring body.
+        examples = None
+        if example_filepath is not None:
+            with open(example_filepath) as example_file:
+                examples = example_file.read()
+
+        self.definition = FakeFunctionDefinition.from_docstring(f.__doc__, external_examples=examples)
+
+        self.num_examples = min(num_examples or len(self.definition.examples), len(self.definition.examples))  # Cap to the number of examples
+        self.chat_kwargs = chat_kwargs
+
+    def calculate_tokens_per_call(self, *args, **kwargs):
+        tokenizer = tiktoken.encoding_for_model(self.engine)
+        if self.num_examples == len(self.definition.examples):  # In this case we can provide an exact answer 
+            return {"result_type": "exact",
+                    "value": len(tokenizer.encode(self.make_prompt(*args, **kwargs)))}
+        else: # We only can approximate the number of tokens per call by sampling
+            return {"result_type": "average",
+                    "value": sum(len(tokenizer.encode(self.make_prompt(*args, **kwargs))) for _ in range(1000)) / 1000}
+
+    def make_prompt(self, *args, _examples=None, **kwargs):
+        """Build the prompt for the given set of parameters."""
+
+        welcome = [{"role": "system", "content": f'Python {sys.version} (main, Feb  7 2023, 12:19:31) [GCC 12.2.0] on {sys.platform}\nType "help", "copyright", "credits" or "license" for more information.'}]
+
+        doc = [{"role": "user", "content": f'>>> {self.name}.__doc__'},
+               {"role": "assistant", "content": f'{self.definition.summary!r}'}]
+
+        example_base = self.definition.examples if _examples is None else _examples
+        num_examples = min(self.num_examples, len(example_base))
+        examples = [({"role": "user", "content": f'>>> {e.source}'},
+                     {"role": "assistant", "content": f'{e.want}'})
+                    for e in random.sample(example_base, k=num_examples)]
+        examples = list(chain.from_iterable(examples))
+
+        args = [repr(a) for a in args]
+        kwargs = [f'{k}={v!r}' for k, v in kwargs.items()]
+        call = [{"role": "user", "content": f'>>> {self.name}({", ".join(args + kwargs)})'}]
+
+        return welcome + doc + examples + call
+
+    def __call__(self, *args, **kwargs):
+        response = openai.ChatCompletion.create(
+          model=self.engine,
+          messages=self.make_prompt(*args, **kwargs),
+          **self.chat_kwargs
+        )
+        try:
+            return ast.literal_eval(response['choices'][0]['message']['content'].strip())
+        except Exception as gpt_exception:
+            try:
+                return self.on_failure()
+            except Exception as user_exception:
+                raise user_exception from gpt_exception
+
+    def _make_test_prompts(self):
+        for i in range(len(self.definition.examples)):
+            preamble = self.definition.examples[:i] + self.definition.examples[i+1:]
+            missing = self.definition.examples[i]
+            if missing.options.get(doctest.SKIP, None):
+                continue
+            yield (self.make_prompt(*missing.call_args, _examples=preamble, **missing.call_kwargs), missing.want)
+    
+    def test_examples(self):
+        """
+        This function let you test the ability to generalize the task with the
+        examples given in the docstring.
+
+        This works by prompting the model as many times as examples are in the
+        definition, plucking out one example at a time and testing if that call
+        returns the expected output for that example.
+
+        """
+        for i, (prompt, wanted) in enumerate(self._make_test_prompts()):
+            response = openai.ChatCompletion.create(
+              model=self.engine,
+              messages=prompt,
+              **self.chat_kwargs
+            )
+            try:
+                current = ast.literal_eval(response['choices'][0]['message']['content'].strip())
             except Exception:
                 assert False, "GPT3 returned bad output"
                 

@@ -107,7 +107,7 @@ def weight(text):
     pass
 
 
-@gptrun(example_filepath="./motto.examples")
+@gptrun(example_filepath="./motto.examples", num_examples=3)
 def motto(character):
     """
     Returns an appropriate motto for the user.

@@ -7,7 +7,6 @@ import random
 
 import openai
 
-
 __all__ = ['gptrun', 'RAISE_EXCEPTION']
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -64,6 +63,16 @@ class GPTRunner:
 
         self.num_examples = min(num_examples or len(self.examples), len(self.examples))  # Cap to the number of examples
         self.completion_kwargs = completion_kwargs
+
+    def calculate_tokens_per_call(self, *args, **kwargs):
+        from transformers import GPT2Tokenizer
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        if self.num_examples == len(self.examples):  # In this case we can provide an exact answer 
+            return {"result_type": "exact",
+                    "value": len(tokenizer(self.make_prompt(*args, **kwargs))["input_ids"])}
+        else: # We only can approximate the number of tokens per call by sampling
+            return {"result_type": "average",
+                    "value": sum(len(tokenizer(self.make_prompt(*args, **kwargs))["input_ids"]) for _ in range(1000)) / 1000}
 
     def make_prompt(self, *args, **kwargs):
         args = [repr(a) for a in args]

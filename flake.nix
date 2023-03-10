@@ -1,21 +1,20 @@
 {
-  description = "virtual environments";
+  outputs = { self, nixpkgs }: let
+    pkgs = nixpkgs.legacyPackages.x86_64-linux;
+  in 
+  {
+    devShells.x86_64-linux.default = pkgs.mkShell rec {
 
-  inputs.devshell.url = "github:numtide/devshell";
-  inputs.flake-utils.url = "github:numtide/flake-utils";
+      buildInputs = [
+        pkgs.pipenv
+        pkgs.zlib
+      ];
 
-  outputs = { self, flake-utils, devshell, nixpkgs }:
-    flake-utils.lib.eachDefaultSystem (system: {
-      devShell =
-        let
-          pkgs = import nixpkgs {
-            inherit system;
+      shellHook = ''
+        export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath buildInputs}:$LD_LIBRARY_PATH"
+        export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib.outPath}/lib:$LD_LIBRARY_PATH"
+      '';
 
-            overlays = [ devshell.overlays.default ];
-          };
-        in
-        pkgs.devshell.mkShell {
-          imports = [ (pkgs.devshell.importTOML ./devshell.toml) ];
-        };
-    });
+    };
+  };
 }

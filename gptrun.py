@@ -82,17 +82,18 @@ def gpt3run(*args, **kwargs):
     """
     if kwargs:
         def gpt3run(f):
-            return functools.wraps(f)(GPT3Runner(f, **kwargs))
+            return functools.wraps(f)(CompletionAPIRunner(f, **kwargs))
         return gpt3run
     else:
-        return functools.wraps(args[0])(GPT3Runner(args[0]))
+        return functools.wraps(args[0])(CompletionAPIRunner(args[0]))
 
 
 def RAISE_EXCEPTION():
     raise ValueError("GPT returned bad output")
 
 
-class GPT3Runner:
+class CompletionAPIRunner:
+    """Infere call result using OpenAI's completion API."""
     def __init__(self, f,
                  engine="text-davinci-003",
                  on_failure=RAISE_EXCEPTION,
@@ -126,19 +127,24 @@ class GPT3Runner:
                     "value": sum(len(tokenizer.encode(self.make_prompt(*args, **kwargs))) for _ in range(1000)) / 1000}
 
     def make_prompt(self, *args, _examples=None, **kwargs):
-        examples = self.definition.examples if _examples is None else _examples
+        """Build the prompt for the given set of parameters."""
+
+        doc = f'>>> {self.name}.__doc__\n{self.definition.summary!r}'
+
+        example_base = self.definition.examples if _examples is None else _examples
+        num_examples = min(self.num_examples, len(example_base))
+        examples = "\n".join(f'>>> {e.source}\n{e.want}' for e in random.sample(example_base, k=num_examples))
+
         args = [repr(a) for a in args]
         kwargs = [f'{k}={v!r}' for k, v in kwargs.items()]
         call = f'>>> {self.name}({", ".join(args + kwargs)})'
-        examples = "\n".join(f'>>> {e.source}\n{e.want}' for e in random.sample(examples, k=min(self.num_examples, len(examples))))
-        doc = f'>>> {self.name}.__doc__\n{self.definition.summary!r}'
+
         return '\n'.join([doc, examples, call])
 
     def __call__(self, *args, **kwargs):
-        prompt = self.make_prompt(*args, **kwargs)
         response = openai.Completion.create(
           engine=self.engine,
-          prompt=prompt,
+          prompt = self.make_prompt(*args, **kwargs),
           top_p=1,
           **self.completion_kwargs
         )
@@ -180,6 +186,7 @@ class GPT3Runner:
             except Exception:
                 assert False, "GPT3 returned bad output"
                 
+            wanted = ast.literal_eval(wanted)
             assert current == wanted, f'In test #{i}: {prompt}, and got {current!r} instead of {wanted!r}'
             print('.', end='')
         print('')

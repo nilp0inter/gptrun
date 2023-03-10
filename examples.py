@@ -73,7 +73,7 @@ def sentiment(text):
 @gptrun  # Use '# doctest: +SKIP' on non-exact samples to avoid failing tests
 def color(description):
     """
-    Return the CSS color code by its description.
+    Return the lowercase CSS color code by its description.
 
     >>> color("black")
     "#000000"
@@ -91,7 +91,7 @@ def color(description):
 @gptrun
 def weight(text):
     """
-    Return the approximate weight of a well known person in kilograms.
+    Return the approximate weight of a well known person or character in kilograms.
 
     >>> weight("Megan Fox") # doctest: +SKIP
     53

@@ -41,7 +41,7 @@ def RAISE_EXCEPTION():
 
 class GPTRunner:
     def __init__(self, f,
-                 engine="text-davinci-001",
+                 engine="text-davinci-003",
                  on_failure=RAISE_EXCEPTION,
                  example_filepath=None,
                  num_examples=0,

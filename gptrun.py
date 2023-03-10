@@ -65,12 +65,16 @@ class GPTRunner:
         self.num_examples = min(num_examples or len(self.examples), len(self.examples))  # Cap to the number of examples
         self.completion_kwargs = completion_kwargs
 
-    def __call__(self, *args, **kwargs):
+    def make_prompt(self, *args, **kwargs):
         args = [repr(a) for a in args]
         kwargs = [f'{k}={v!r}' for k, v in kwargs.items()]
         call = f'>>> {self.name}({", ".join(args + kwargs)})'
-        examples = "".join(f'>>> {e.source.split("#")[0]}{e.want}' for e in random.sample(self.examples, k=self.num_examples))
-        prompt = examples + call
+        examples = "\n".join(f'>>> {ast.unparse(ast.parse(e.source))}\n{ast.unparse(ast.parse(e.want))}' for e in random.sample(self.examples, k=self.num_examples))
+        doc = f'>>> {self.name}.__doc__\n{self.summary!r}'
+        return '\n'.join([doc, examples, call])
+
+    def __call__(self, *args, **kwargs):
+        prompt = self.make_prompt(*args, **kwargs)
         response = openai.Completion.create(
           engine=self.engine,
           prompt=prompt,

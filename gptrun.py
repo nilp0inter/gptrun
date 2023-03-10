@@ -9,6 +9,7 @@ import random
 import textwrap
 
 import openai
+import tiktoken
 
 
 __all__ = ['gpt3run', 'RAISE_EXCEPTION']
@@ -116,14 +117,13 @@ class GPT3Runner:
         self.completion_kwargs = completion_kwargs
 
     def calculate_tokens_per_call(self, *args, **kwargs):
-        from transformers import GPT2Tokenizer
-        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        tokenizer = tiktoken.encoding_for_model(self.engine)
         if self.num_examples == len(self.definition.examples):  # In this case we can provide an exact answer 
             return {"result_type": "exact",
-                    "value": len(tokenizer(self.make_prompt(*args, **kwargs))["input_ids"])}
+                    "value": len(tokenizer.encode(self.make_prompt(*args, **kwargs)))}
         else: # We only can approximate the number of tokens per call by sampling
             return {"result_type": "average",
-                    "value": sum(len(tokenizer(self.make_prompt(*args, **kwargs))["input_ids"]) for _ in range(1000)) / 1000}
+                    "value": sum(len(tokenizer.encode(self.make_prompt(*args, **kwargs))) for _ in range(1000)) / 1000}
 
     def make_prompt(self, *args, _examples=None, **kwargs):
         examples = self.definition.examples if _examples is None else _examples
@@ -150,7 +150,7 @@ class GPT3Runner:
             except Exception as user_exception:
                 raise user_exception from gpt_exception
 
-    def _get_tests(self):
+    def _make_test_prompts(self):
         for i in range(len(self.definition.examples)):
             preamble = self.definition.examples[:i] + self.definition.examples[i+1:]
             missing = self.definition.examples[i]
@@ -163,12 +163,12 @@ class GPT3Runner:
         This function let you test the ability to generalize the task with the
         examples given in the docstring.
 
-        Prompt the model as many times as examples are in the definition,
-        plucking out one example at a time and testing if that call returns the
-        expected output.
+        This works by prompting the model as many times as examples are in the
+        definition, plucking out one example at a time and testing if that call
+        returns the expected output for that example.
 
         """
-        for i, (prompt, wanted) in enumerate(self._get_tests()):
+        for i, (prompt, wanted) in enumerate(self._make_test_prompts()):
             response = openai.Completion.create(
               engine=self.engine,
               prompt=prompt,
@@ -180,7 +180,6 @@ class GPT3Runner:
             except Exception:
                 assert False, "GPT3 returned bad output"
                 
-            wanted = ast.literal_eval(wanted)
             assert current == wanted, f'In test #{i}: {prompt}, and got {current!r} instead of {wanted!r}'
             print('.', end='')
         print('')

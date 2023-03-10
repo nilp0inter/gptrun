@@ -1,7 +1,7 @@
-from gptrun import gptrun
+from gptrun import gpt3run
 from functools import lru_cache
 
-@gptrun
+@gpt3run
 def is_irony(text):
     """
     Returns True if text contains irony, False otherwise.
@@ -22,7 +22,7 @@ def is_irony(text):
     pass
 
 
-@gptrun(engine="text-curie-001")  # Use other engines for cost and/or precision
+@gpt3run(engine="text-curie-001")  # Use other engines for cost and/or precision
 def capital(country):
     """
     Return the capital of a country.
@@ -37,7 +37,7 @@ def capital(country):
     pass
 
 
-@gptrun
+@gpt3run
 def spanish_rhyme(word):
     """
     Return a rhyme given a word (in Spanish).
@@ -53,7 +53,7 @@ def spanish_rhyme(word):
     
 
 
-@gptrun(default=None)  # If you don't want to raise an exception if GPT3 returns nonsense
+@gpt3run(default=None)  # If you don't want to raise an exception if GPT3 returns nonsense
 def sentiment(text):
     """
     Return the general sentiment of the phrase as 'positive', 'neutral' or 'negative'.
@@ -70,7 +70,7 @@ def sentiment(text):
     pass
 
 
-@gptrun  # Use '# doctest: +SKIP' on non-exact samples to avoid failing tests
+@gpt3run  # Use '# doctest: +SKIP' on non-exact samples to avoid failing tests
 def color(description):
     """
     Return the lowercase CSS color code by its description.
@@ -88,7 +88,7 @@ def color(description):
 
 
 @lru_cache  # You can cache results to save some money
-@gptrun
+@gpt3run
 def weight(text):
     """
     Return the approximate weight of a well known person or character in kilograms.
@@ -107,7 +107,7 @@ def weight(text):
     pass
 
 
-@gptrun(example_filepath="./motto.examples", num_examples=3)
+@gpt3run(example_filepath="./motto.examples", num_examples=3)
 def motto(character):
     """
     Returns an appropriate motto for the user.
@@ -120,7 +120,7 @@ if __name__ == '__main__':
     # You can test your functions like so...
     #
     print("TESTING 'color':")
-    color.test()
+    color.test_examples()
 
     #
     # You can use the functions as normal python functions:

@@ -22,7 +22,7 @@ def is_irony(text):
     pass
 
 
-@gpt3run(engine="text-curie-001")  # Use other engines for cost and/or precision
+@gpt3run(api_engine="text-curie-001")  # Use other engines for cost and/or precision
 def capital(country):
     """
     Return the capital of a country.
@@ -53,7 +53,7 @@ def spanish_rhyme(word):
     
 
 
-@gpt3run(default=None)  # If you don't want to raise an exception if GPT3 returns nonsense
+@gpt3run(on_invalid_response=lambda:None)  # If you don't want to raise an exception if GPT3 returns nonsense
 def sentiment(text):
     """
     Return the general sentiment of the phrase as 'positive', 'neutral' or 'negative'.
@@ -107,7 +107,7 @@ def weight(text):
     pass
 
 
-@gpt3run(example_filepath="./motto.examples", num_examples=3)
+@gpt3run(external_example_file="./motto.examples", num_examples=3)
 def motto(character):
     """
     Returns an appropriate motto for the user.

@@ -15,10 +15,46 @@ from .data import FakeFunctionDefinition, InvokationExample
 
 __all__ = ['gpt3run', 'chatgptrun', 'RAISE_EXCEPTION']
 
+def RAISE_EXCEPTION():
+    raise ValueError("GPT returned bad output")
+
+
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 class Runner(ABC):
+    def __init__(self,
+                 function,
+                 override_name=None,
+                 on_api_error=RAISE_EXCEPTION,
+                 on_invalid_response=RAISE_EXCEPTION,
+                 external_example_file=None,
+                 num_examples=0,
+                 **api_kwargs):
+        """See `gpt3run` decorator."""
+        self.name = function.__name__ if override_name is None else override_name
+        self.on_api_error = on_api_error
+        self.on_invalid_response = on_invalid_response
+
+        # Examples can be provided from an external `external_example_file` or as a docstring body.
+        examples = None
+        if external_example_file is not None:
+            with open(external_example_file) as example_file:
+                examples = example_file.read()
+
+        self.definition = FakeFunctionDefinition.from_docstring(function.__doc__, external_examples=examples)
+
+        self.num_examples = min(num_examples or len(self.definition.examples), len(self.definition.examples))  # Cap to the number of examples
+
+        self.api_kwargs = dict()
+        try:
+            for k, v in api_kwargs.items():
+                assert k.startswith('api_'), "Extra API kwargs must be prefixed with 'api_'"
+                self.api_kwargs[k[4:]] = v
+        except AssertionError as exc:
+            raise ValueError(f"Invalid parameter {k!r}") from exc
+
+
     @abstractmethod
     def calculate_tokens_per_call(self, *args, **kwargs):
         """
@@ -74,46 +110,31 @@ class Runner(ABC):
     def __call__(self, *args, **kwargs):
         """Run the runner."""
 
-        response = self.call_api(*args, **kwargs)
+        try:
+            response = self.call_api(*args, **kwargs)
+        except Exception as api_exception:
+            try:
+                return self.on_api_error()
+            except Exception as user_exception:
+                raise user_exception from api_exception
+
         completion = self.api_response_to_text(response)
 
         try:
             return ast.literal_eval(completion)
         except Exception as gpt_exception:
             try:
-                return self.on_failure()
+                return self.on_invalid_response()
             except Exception as user_exception:
                 raise user_exception from gpt_exception
 
 
-def RAISE_EXCEPTION():
-    raise ValueError("GPT returned bad output")
-
-
 class CompletionAPIRunner(Runner):
     """Infere call result using OpenAI's completion API."""
-    def __init__(self, f,
-                 engine="text-davinci-003",
-                 on_failure=RAISE_EXCEPTION,
-                 example_filepath=None,
-                 num_examples=0,
-                 **api_kwargs):
-        """See `gpt3run` decorator."""
-        self.name = f.__name__
 
-        self.engine = engine
-        self.on_failure = on_failure
-
-        # Examples can be provided from an external `example_filepath` or as a docstring body.
-        examples = None
-        if example_filepath is not None:
-            with open(example_filepath) as example_file:
-                examples = example_file.read()
-
-        self.definition = FakeFunctionDefinition.from_docstring(f.__doc__, external_examples=examples)
-
-        self.num_examples = min(num_examples or len(self.definition.examples), len(self.definition.examples))  # Cap to the number of examples
-        self.api_kwargs = api_kwargs
+    @property
+    def engine(self):
+        return self.api_kwargs.get("engine", "text-davinci-003")
 
     def calculate_tokens_per_call(self, *args, **kwargs):
         tokenizer = tiktoken.encoding_for_model(self.engine)
@@ -141,10 +162,9 @@ class CompletionAPIRunner(Runner):
 
     def call_api(self, *args, **kwargs):
         return openai.Completion.create(
-          engine=self.engine,
           prompt = self.make_prompt(*args, **kwargs),
           top_p=1,
-          **self.api_kwargs
+          **{**{"engine": self.engine}, **self.api_kwargs}
         )
 
     def api_response_to_text(self, response):
@@ -170,10 +190,9 @@ class CompletionAPIRunner(Runner):
         """
         for i, (prompt, wanted) in enumerate(self._make_test_prompts()):
             response = openai.Completion.create(
-              engine=self.engine,
               prompt=prompt,
               top_p=1,
-              **self.api_kwargs
+              **{**{"engine": self.engine}, **self.api_kwargs}
             )
             try:
                 current = ast.literal_eval(response['choices'][0]['text'].strip())
@@ -191,7 +210,7 @@ class ChatCompletionAPIRunner(Runner):
     def __init__(self, f,
                  engine="gpt-3.5-turbo",
                  on_failure=RAISE_EXCEPTION,
-                 example_filepath=None,
+                 external_example_file=None,
                  num_examples=0,
                  **api_kwargs):
         """See `chatgptrun` decorator."""
@@ -200,10 +219,10 @@ class ChatCompletionAPIRunner(Runner):
         self.engine = engine
         self.on_failure = on_failure
 
-        # Examples can be provided from an external `example_filepath` or as a docstring body.
+        # Examples can be provided from an external `external_example_file` or as a docstring body.
         examples = None
-        if example_filepath is not None:
-            with open(example_filepath) as example_file:
+        if external_example_file is not None:
+            with open(external_example_file) as example_file:
                 examples = example_file.read()
 
         self.definition = FakeFunctionDefinition.from_docstring(f.__doc__, external_examples=examples)
@@ -297,7 +316,7 @@ def _make_runner_decorator(runner):
         :param f: The function to transform.
         :param on_failure: A function to call if the model fails to return a valid Python output.
         :param engine: The OpenAI engine to use.
-        :param example_filepath: A path to a file containing external examples instead of using the docstring.
+        :param external_example_file: A path to a file containing external examples instead of using the docstring.
         :param num_examples: The number of examples to use. If 0, all examples are used.
         :param api_kwargs: Additional keyword arguments to pass to the OpenAI API.
 

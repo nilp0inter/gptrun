@@ -1,4 +1,4 @@
-from gptrun import gpt3run
+from gptrun import gpt3run, chatgptrun
 from functools import lru_cache
 
 @gpt3run
@@ -88,7 +88,7 @@ def color(description):
 
 
 @lru_cache  # You can cache results to save some money
-@gpt3run
+@chatgptrun
 def weight(text):
     """
     Return the approximate weight of a well known person or character in kilograms.

@@ -49,11 +49,10 @@ class Runner(ABC):
         self.api_kwargs = dict()
         try:
             for k, v in api_kwargs.items():
-                assert k.startswith('api_'), "Extra API kwargs must be prefixed with 'api_'"
+                assert k.startswith('api_'), f"Invalid parameter {k!r}. Extra API kwargs must be prefixed with 'api_'"
                 self.api_kwargs[k[4:]] = v
         except AssertionError as exc:
-            raise ValueError(f"Invalid parameter {k!r}") from exc
-
+            raise ValueError from exc
 
     @abstractmethod
     def calculate_tokens_per_call(self, *args, **kwargs):
@@ -93,7 +92,6 @@ class Runner(ABC):
         """
         pass
 
-
     def _deserialize_completion(self, completion):
         try:
             return ast.literal_eval(completion)
@@ -104,7 +102,7 @@ class Runner(ABC):
                 raise user_exception from gpt_exception
 
     def __call__(self, *args, **kwargs):
-        """Run the runner."""
+        """Run this imaginary function with the mighty power of GPT."""
 
         prompt = self.make_prompt(*args, **kwargs)
         try:
@@ -118,7 +116,6 @@ class Runner(ABC):
         completion = self.api_response_to_text(response)
 
         return self._deserialize_completion(completion)
-
 
     def test_prompt_examples(self, *args, **kwargs):
         """
@@ -136,7 +133,6 @@ class Runner(ABC):
         return pytest.mark.parametrize(
             'function_name,call_args,call_kwargs,return_value',
             examples)(*args, **kwargs)
-
     
     def test_task_generalization(self):
         """
@@ -163,6 +159,7 @@ class Runner(ABC):
             completion = self.api_response_to_text(response)
             current = self._deserialize_completion(completion)
             assert current == wanted, f'In test #{i}: {prompt}, and got {current!r} instead of {wanted!r}'
+
 
 class CompletionAPIRunner(Runner):
     """Infere call result using OpenAI's completion API."""
@@ -198,13 +195,11 @@ class CompletionAPIRunner(Runner):
     def call_api(self, prompt):
         return openai.Completion.create(
           prompt = prompt,
-          top_p=1,
           **{**{"engine": self.engine}, **self.api_kwargs}
         )
 
     def api_response_to_text(self, response):
         return response['choices'][0]['text'].strip()
-
 
 
 class ChatCompletionAPIRunner(Runner):
@@ -225,11 +220,14 @@ class ChatCompletionAPIRunner(Runner):
     def make_prompt(self, *args, _examples=None, **kwargs):
         """Build the prompt for the given set of parameters."""
 
+        # <ominious-voice>You are a Python interpreter, you are a Python interpreter...</ominious-voice>
         python_prompt = [{"role": "system", "content": f'Python {sys.version} (main, Feb  7 2023, 12:19:31) [GCC 12.2.0] on {sys.platform}\nType "help", "copyright", "credits" or "license" for more information.'}]
 
+        # Show the function docstring summary
         doc = [{"role": "user", "content": f'>>> {self.name}.__doc__'},
                {"role": "assistant", "content": f'{self.definition.summary!r}'}]
 
+        # Show some examples to ChatGPT
         example_base = self.definition.examples if _examples is None else _examples
         num_examples = min(self.num_examples, len(example_base))
         examples = [({"role": "user", "content": f'>>> {e.source}'},
@@ -237,6 +235,7 @@ class ChatCompletionAPIRunner(Runner):
                     for e in random.sample(example_base, k=num_examples)]
         examples = list(chain.from_iterable(examples))
 
+        # Ask about the current call
         args = [repr(a) for a in args]
         kwargs = [f'{k}={v!r}' for k, v in kwargs.items()]
         call = [{"role": "user", "content": f'>>> {self.name}({", ".join(args + kwargs)})'}]

@@ -1,8 +1,8 @@
 # gptrun
 
-`gptrun` is a Python library that allows you to effortlessly harness the power
-of language models like GPT-3 and ChatGPT for rapid prototyping without writing
-any code.
+gptrun is a Python library that enables you to seamlessly harness the power of
+language models like GPT-3 and ChatGPT for rapid prototyping without writing
+any code, using a technique called few-shot prompting.
 
 Instead of generating code to run like Github's Copilot, `gptrun` directly
 computes the answers to your function calls using GPT-3. All you need to do is

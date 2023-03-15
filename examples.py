@@ -120,7 +120,7 @@ if __name__ == '__main__':
     # You can test your functions like so...
     #
     print("TESTING 'color':")
-    color.test_examples()
+    color.test_task_generalization()
 
     #
     # You can use the functions as normal python functions:

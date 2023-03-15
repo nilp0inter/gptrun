@@ -11,15 +11,15 @@ import openai
 import tiktoken
 import pytest
 
-from .data import FakeFunctionDefinition, InvokationExample
+from .data import FakeFunctionDefinition
 
 
-__all__ = ['gpt3run', 'chatgptrun', 'RAISE_EXCEPTION']
-
+# TODO: think. Is it useful to pass the failure to this callback?
 def RAISE_EXCEPTION():
     raise ValueError("GPT returned bad output")
 
 
+# TODO: obtain and set with a context manager
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
@@ -68,9 +68,9 @@ class Runner(ABC):
         pass
 
     @abstractmethod
-    def make_prompt(self, *args, **kwargs):
+    def make_prompt(self, *args, _examples=None, **kwargs):
         """
-        Return the prompt to use for the API.
+        Return the prompt to use for the API for the given set of examples.
 
         This prompt will be used to generate the output of the function.
 
@@ -78,9 +78,9 @@ class Runner(ABC):
         pass
 
     @abstractmethod
-    def call_api(self, *args, **kwargs):
+    def call_api(self, prompt):
         """
-        Call the API with the given parameters returning the raw response.
+        Call the API with the given prompt returning the raw response.
 
         """
         pass
@@ -94,32 +94,7 @@ class Runner(ABC):
         pass
 
 
-    @abstractmethod
-    def test_examples(self):
-        """
-        This function let you test the ability to generalize the task with the
-        examples given in the docstring.
-
-        This works by prompting the model as many times as examples are in the
-        definition, plucking out one example at a time and testing if that call
-        returns the expected output for that example.
-
-        """
-        pass
-
-    def __call__(self, *args, **kwargs):
-        """Run the runner."""
-
-        try:
-            response = self.call_api(*args, **kwargs)
-        except Exception as api_exception:
-            try:
-                return self.on_api_error()
-            except Exception as user_exception:
-                raise user_exception from api_exception
-
-        completion = self.api_response_to_text(response)
-
+    def _deserialize_completion(self, completion):
         try:
             return ast.literal_eval(completion)
         except Exception as gpt_exception:
@@ -128,7 +103,31 @@ class Runner(ABC):
             except Exception as user_exception:
                 raise user_exception from gpt_exception
 
+    def __call__(self, *args, **kwargs):
+        """Run the runner."""
+
+        prompt = self.make_prompt(*args, **kwargs)
+        try:
+            response = self.call_api(prompt)
+        except Exception as api_exception:
+            try:
+                return self.on_api_error()
+            except Exception as user_exception:
+                raise user_exception from api_exception
+
+        completion = self.api_response_to_text(response)
+
+        return self._deserialize_completion(completion)
+
+
     def test_prompt_examples(self, *args, **kwargs):
+        """
+        This function returns a pytest parametrizer decorator that let you test
+        one by one the examples provided in the docstring.
+
+        This will not perform any call to OpenAI.
+
+        """
         examples = list()
         for example in self.definition.examples:
             function_name = example.source.split('(')[0]
@@ -138,6 +137,32 @@ class Runner(ABC):
             'function_name,call_args,call_kwargs,return_value',
             examples)(*args, **kwargs)
 
+    
+    def test_task_generalization(self):
+        """
+        This function is a pytest test that let you test the ability to
+        generalize the task with the examples given in the docstring.
+
+        This works by prompting the model as many times as examples are in the
+        definition, plucking out one example at a time and testing if that call
+        returns the expected output for that example.
+
+        Please note that THIS WILL PERFORM MANY CALLS to OpenAI's API.
+
+        """
+        def _make_test_prompts():
+            for i in range(len(self.definition.examples)):
+                preamble = self.definition.examples[:i] + self.definition.examples[i+1:]
+                missing = self.definition.examples[i]
+                if missing.options.get(doctest.SKIP, None):
+                    continue
+                yield (self.make_prompt(*missing.call_args, _examples=preamble, **missing.call_kwargs), missing.want_obj)
+
+        for i, (prompt, wanted) in enumerate(_make_test_prompts()):
+            response = self.call_api(prompt)
+            completion = self.api_response_to_text(response)
+            current = self._deserialize_completion(completion)
+            assert current == wanted, f'In test #{i}: {prompt}, and got {current!r} instead of {wanted!r}'
 
 class CompletionAPIRunner(Runner):
     """Infere call result using OpenAI's completion API."""
@@ -170,9 +195,9 @@ class CompletionAPIRunner(Runner):
 
         return '\n'.join([doc, examples, call])
 
-    def call_api(self, *args, **kwargs):
+    def call_api(self, prompt):
         return openai.Completion.create(
-          prompt = self.make_prompt(*args, **kwargs),
+          prompt = prompt,
           top_p=1,
           **{**{"engine": self.engine}, **self.api_kwargs}
         )
@@ -180,39 +205,6 @@ class CompletionAPIRunner(Runner):
     def api_response_to_text(self, response):
         return response['choices'][0]['text'].strip()
 
-    def _make_test_prompts(self):
-        for i in range(len(self.definition.examples)):
-            preamble = self.definition.examples[:i] + self.definition.examples[i+1:]
-            missing = self.definition.examples[i]
-            if missing.options.get(doctest.SKIP, None):
-                continue
-            yield (self.make_prompt(*missing.call_args, _examples=preamble, **missing.call_kwargs), missing.want)
-    
-    def test_examples(self):
-        """
-        This function let you test the ability to generalize the task with the
-        examples given in the docstring.
-
-        This works by prompting the model as many times as examples are in the
-        definition, plucking out one example at a time and testing if that call
-        returns the expected output for that example.
-
-        """
-        for i, (prompt, wanted) in enumerate(self._make_test_prompts()):
-            response = openai.Completion.create(
-              prompt=prompt,
-              top_p=1,
-              **{**{"engine": self.engine}, **self.api_kwargs}
-            )
-            try:
-                current = ast.literal_eval(response['choices'][0]['text'].strip())
-            except Exception:
-                assert False, "GPT3 returned bad output"
-                
-            wanted = ast.literal_eval(wanted)
-            assert current == wanted, f'In test #{i}: {prompt}, and got {current!r} instead of {wanted!r}'
-            print('.', end='')
-        print('')
 
 
 class ChatCompletionAPIRunner(Runner):
@@ -251,47 +243,14 @@ class ChatCompletionAPIRunner(Runner):
 
         return python_prompt + doc + examples + call
 
-    def call_api(self, *args, **kwargs):
+    def call_api(self, prompt):
         return openai.ChatCompletion.create(
-          messages=self.make_prompt(*args, **kwargs),
+          messages=prompt,
           **{**{"model": self.model}, **self.api_kwargs}
         )
 
     def api_response_to_text(self, response):
         return response['choices'][0]['message']['content'].strip()
-
-    def _make_test_prompts(self):
-        for i in range(len(self.definition.examples)):
-            preamble = self.definition.examples[:i] + self.definition.examples[i+1:]
-            missing = self.definition.examples[i]
-            if missing.options.get(doctest.SKIP, None):
-                continue
-            yield (self.make_prompt(*missing.call_args, _examples=preamble, **missing.call_kwargs), missing.want)
-    
-    def test_examples(self):
-        """
-        This function let you test the ability to generalize the task with the
-        examples given in the docstring.
-
-        This works by prompting the model as many times as examples are in the
-        definition, plucking out one example at a time and testing if that call
-        returns the expected output for that example.
-
-        """
-        for i, (prompt, wanted) in enumerate(self._make_test_prompts()):
-            response = openai.ChatCompletion.create(
-              messages=prompt,
-              **{**{"model": self.model}, **self.api_kwargs}
-            )
-            try:
-                current = ast.literal_eval(response['choices'][0]['message']['content'].strip())
-            except Exception:
-                assert False, "GPT3 returned bad output"
-                
-            wanted = ast.literal_eval(wanted)
-            assert current == wanted, f'In test #{i}: {prompt}, and got {current!r} instead of {wanted!r}'
-            print('.', end='')
-        print('')
 
 
 def _make_runner_decorator(runner):

@@ -1,20 +1,46 @@
 # gptrun
-Don't feel like coding today?  Use the power of GPT3 to imagine the result of any function. You only need some doctests.
 
-**How is this different from Github's Copilot? Is that what you're thinking?** Copilot generates code that you run.  This beauty uses GPT3 to compute the answer to each function call.
+`gptrun` is a Python library that allows you to effortlessly harness the power
+of language models like GPT-3 and ChatGPT for rapid prototyping without writing
+any code.
 
-## Example
+Instead of generating code to run like Github's Copilot, `gptrun` directly
+computes the answers to your function calls using GPT-3. All you need to do is
+provide some doctests for your desired function, and let GPT-3 do the rest.
 
-First you need an OPENAI API key. Get yours here: https://openai.com/api/
+## Features
+
+- Effortless function mocking using GPT-3
+- Test-driven development with doctests
+- Customizable GPT-3 parameters using decorators
+- Easy integration with other AI models
+
+## Installation
+
+To install `gptrun`, follow these steps:
+
+1. Install the library from the GitHub repository:
 
 ```console
 $ pip install git+https://github.com/nilp0inter/gptrun@main
-$ export OPENAI_API_KEY="<your OPENAI key>"
 ```
 
-A code sample:
+2. Set up your OpenAI API key:
+
+```console
+$ export OPENAI_API_KEY="<your OPENAI key>"
+```
+If you don't have an API key, you can obtain one from the OpenAI API website.
+
+## Usage
+
+Using gptrun is as simple as adding a decorator to your functions and providing
+some doctests. Here's a basic example:
 
 ```python
+
+from gptrun import gptrun
+
 @gptrun
 def capital(country):
     """
@@ -27,35 +53,20 @@ def capital(country):
     >>> capital("Spain")
     "Madrid"
     """
-    pass  # I don't feel like coding today (:
+    pass  # No need to write any code!
 
+# Test your function
+capital.test_task_generalization()
 
->>> capital.test()  # You can test your "code".  Don't let them blame you on coverage.
-...
-
->>> capital("China")
-"Beijing"
-
+# Call your function
+print(capital("China"))  # Output: "Beijing"
 ```
+For more advanced usage and customization, check out the examples in `examples.py`.
 
-## Not impressed yet? 🤔
+## Contributing
 
-```python
->>> from examples import is_irony
->>> is_irony("If you find me offensive. Then I suggest you quit finding me.")
-True
->>> is_irony("If you find me offensive. Then I suggest you quit.")
-False
+Contributions to gptrun are always welcome! If you have an idea for a new
+feature, a bug report, or a question, please open an issue on GitHub. To submit
+a pull request, please fork the repository and create a new branch with your
+changes.
 
-```
-
-Look other examples in `examples.py`. And if you came up with more, just send me a pull request.
-
-You can adjust GPT3 parameters using the decorator. See `examples.py`.
-
-## How is this useful?
-
-This can be useful for rapid prototyping of AI based systems.  Instead of developing your own model, just mock it with GPT3.
-
-
-This code is production ready and 💯% certified by the Ministry of Silly Walks.

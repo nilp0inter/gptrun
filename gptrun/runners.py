@@ -9,6 +9,7 @@ import sys
 
 import openai
 import tiktoken
+import pytest
 
 from .data import FakeFunctionDefinition, InvokationExample
 
@@ -31,7 +32,6 @@ class Runner(ABC):
                  external_example_file=None,
                  num_examples=0,
                  **api_kwargs):
-        """See `gpt3run` decorator."""
         self.name = function.__name__ if override_name is None else override_name
         self.on_api_error = on_api_error
         self.on_invalid_response = on_invalid_response
@@ -128,6 +128,16 @@ class Runner(ABC):
             except Exception as user_exception:
                 raise user_exception from gpt_exception
 
+    def test_prompt_examples(self, *args, **kwargs):
+        examples = list()
+        for example in self.definition.examples:
+            function_name = example.source.split('(')[0]
+            examples.append((function_name, example.call_args_obj, example.call_kwargs_obj, example.want_obj))
+
+        return pytest.mark.parametrize(
+            'function_name,call_args,call_kwargs,return_value',
+            examples)(*args, **kwargs)
+
 
 class CompletionAPIRunner(Runner):
     """Infere call result using OpenAI's completion API."""
@@ -207,31 +217,12 @@ class CompletionAPIRunner(Runner):
 
 class ChatCompletionAPIRunner(Runner):
     """Infere call result using OpenAI's chat API."""
-    def __init__(self, f,
-                 engine="gpt-3.5-turbo",
-                 on_failure=RAISE_EXCEPTION,
-                 external_example_file=None,
-                 num_examples=0,
-                 **api_kwargs):
-        """See `chatgptrun` decorator."""
-        self.name = f.__name__
-
-        self.engine = engine
-        self.on_failure = on_failure
-
-        # Examples can be provided from an external `external_example_file` or as a docstring body.
-        examples = None
-        if external_example_file is not None:
-            with open(external_example_file) as example_file:
-                examples = example_file.read()
-
-        self.definition = FakeFunctionDefinition.from_docstring(f.__doc__, external_examples=examples)
-
-        self.num_examples = min(num_examples or len(self.definition.examples), len(self.definition.examples))  # Cap to the number of examples
-        self.api_kwargs = api_kwargs
+    @property
+    def model(self):
+        return self.api_kwargs.get("model", "gpt-3.5-turbo")
 
     def calculate_tokens_per_call(self, *args, **kwargs):
-        tokenizer = tiktoken.encoding_for_model(self.engine)
+        tokenizer = tiktoken.encoding_for_model(self.model)
         if self.num_examples == len(self.definition.examples):  # In this case we can provide an exact answer 
             return {"result_type": "exact",
                     "value": len(tokenizer.encode(self.make_prompt(*args, **kwargs)))}
@@ -262,9 +253,8 @@ class ChatCompletionAPIRunner(Runner):
 
     def call_api(self, *args, **kwargs):
         return openai.ChatCompletion.create(
-          model=self.engine,
           messages=self.make_prompt(*args, **kwargs),
-          **self.api_kwargs
+          **{**{"model": self.model}, **self.api_kwargs}
         )
 
     def api_response_to_text(self, response):
@@ -290,9 +280,8 @@ class ChatCompletionAPIRunner(Runner):
         """
         for i, (prompt, wanted) in enumerate(self._make_test_prompts()):
             response = openai.ChatCompletion.create(
-              model=self.engine,
               messages=prompt,
-              **self.api_kwargs
+              **{**{"model": self.model}, **self.api_kwargs}
             )
             try:
                 current = ast.literal_eval(response['choices'][0]['message']['content'].strip())

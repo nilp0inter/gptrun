@@ -55,13 +55,9 @@ class Runner(ABC):
             raise ValueError from exc
 
     @abstractmethod
-    def calculate_tokens_per_call(self, *args, **kwargs):
+    def calculate_prompt_tokens(self, prompt):
         """
-        Return the number of tokens per call.
-
-        Depending on the runner, this can be an exact value or an average value.
-
-        Example: {"result_type": "exact", "value": 100}
+        Return the number of tokens for this particular prompt.
 
         """
         pass
@@ -91,6 +87,23 @@ class Runner(ABC):
 
         """
         pass
+
+    def calculate_tokens_per_call(self, *args, **kwargs):
+        """
+        Return the number of tokens per call.
+
+        Depending on the runner, this can be an exact value or an average value.
+
+        Example: {"result_type": "exact", "value": 100}
+
+        """
+        if self.num_examples == len(self.definition.examples):  # In this case we can provide an exact answer 
+            return {"result_type": "exact",
+                    "value": self.calculate_prompt_tokens(self.make_prompt(*args, **kwargs))}
+        else: # We only can approximate the number of tokens per call by sampling
+            return {"result_type": "average",
+                    "value": sum(self.calculate_prompt_tokens(self.make_prompt(*args, **kwargs)) for _ in range(1000)) / 1000}
+
 
     def _deserialize_completion(self, completion):
         try:
@@ -168,14 +181,9 @@ class CompletionAPIRunner(Runner):
     def engine(self):
         return self.api_kwargs.get("engine", "text-davinci-003")
 
-    def calculate_tokens_per_call(self, *args, **kwargs):
+    def calculate_prompt_tokens(self, prompt):
         tokenizer = tiktoken.encoding_for_model(self.engine)
-        if self.num_examples == len(self.definition.examples):  # In this case we can provide an exact answer 
-            return {"result_type": "exact",
-                    "value": len(tokenizer.encode(self.make_prompt(*args, **kwargs)))}
-        else: # We only can approximate the number of tokens per call by sampling
-            return {"result_type": "average",
-                    "value": sum(len(tokenizer.encode(self.make_prompt(*args, **kwargs))) for _ in range(1000)) / 1000}
+        return len(tokenizer.encode(prompt))
 
     def make_prompt(self, *args, _examples=None, **kwargs):
         """Build the prompt for the given set of parameters."""
@@ -203,19 +211,35 @@ class CompletionAPIRunner(Runner):
 
 
 class ChatCompletionAPIRunner(Runner):
-    """Infere call result using OpenAI's chat API."""
+    """
+    Infere call result using OpenAI's chat API.
+
+    In this runner a prompt is a structured message that follows the API
+    described here:
+
+    https://platform.openai.com/docs/api-reference/chat
+
+    """
+
     @property
     def model(self):
         return self.api_kwargs.get("model", "gpt-3.5-turbo")
 
-    def calculate_tokens_per_call(self, *args, **kwargs):
+    def calculate_prompt_tokens(self, prompt):
+        """
+        source: https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
+
+        """
         tokenizer = tiktoken.encoding_for_model(self.model)
-        if self.num_examples == len(self.definition.examples):  # In this case we can provide an exact answer 
-            return {"result_type": "exact",
-                    "value": len(tokenizer.encode(self.make_prompt(*args, **kwargs)))}
-        else: # We only can approximate the number of tokens per call by sampling
-            return {"result_type": "average",
-                    "value": sum(len(tokenizer.encode(self.make_prompt(*args, **kwargs))) for _ in range(1000)) / 1000}
+        num_tokens = 0
+        for message in prompt:
+            num_tokens += 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
+            for key, value in message.items():
+                num_tokens += len(tokenizer.encode(value))
+                if key == "name":  # if there's a name, the role is omitted
+                    num_tokens += -1  # role is always required and always 1 token
+            num_tokens += 2  # every reply is primed with <im_start>assistant
+        return num_tokens
 
     def make_prompt(self, *args, _examples=None, **kwargs):
         """Build the prompt for the given set of parameters."""

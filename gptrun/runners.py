@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from itertools import chain
 import ast
@@ -7,10 +6,12 @@ import functools
 import os
 import random
 import sys
-import textwrap
 
 import openai
 import tiktoken
+
+from .data import FakeFunctionDefinition, InvokationExample
+
 
 __all__ = ['gpt3run', 'chatgptrun', 'RAISE_EXCEPTION']
 
@@ -41,11 +42,17 @@ class Runner(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, *args, **kwargs):
+    def call_api(self, *args, **kwargs):
         """
-        Run the function.
+        Call the API with the given parameters returning the raw response.
 
-        This function will be called instead of the original function.
+        """
+        pass
+
+    @abstractmethod
+    def api_response_to_text(self, response):
+        """
+        Return the part of the response representing the model text completion.
 
         """
         pass
@@ -64,55 +71,19 @@ class Runner(ABC):
         """
         pass
 
+    def __call__(self, *args, **kwargs):
+        """Run the runner."""
 
+        response = self.call_api(*args, **kwargs)
+        completion = self.api_response_to_text(response)
 
-@dataclass
-class InvokationExample:
-    source: str
-    call_args: list[object]
-    call_kwargs: dict[str, object]
-    want: str
-    options: dict
-
-    @classmethod
-    def from_doctest_example(cls, example):
-        source = ast.parse(example.source).body[0]
-        if not isinstance(source.value, ast.Call):
-            raise ValueError("Examples must be function calls only!")
-        want = ast.parse(example.want).body[0]
-        call_args = [ast.unparse(x) for x in source.value.args]
-        call_kwargs = {kw.arg: ast.unparse(kw.value) for kw in source.value.keywords}
-        return cls(source=ast.unparse(source),
-                   call_args=call_args,
-                   call_kwargs=call_kwargs,
-                   want=ast.unparse(want),
-                   options=example.options)
-
-
-@dataclass
-class FakeFunctionDefinition:
-    summary: str
-    examples: list[InvokationExample]
-    
-    @staticmethod
-    def get_summary(docstring):
-        """Return the first paragraph of a function's docstring. """
-        dedented_docstring = textwrap.dedent(docstring)
-        paragraphs = dedented_docstring.strip().split('\n\n')
-        first_paragraph = paragraphs[0].strip() if paragraphs else ''
-        return ' '.join((l.strip() for l in first_paragraph.splitlines()))
-
-    @classmethod
-    def from_docstring(cls, docstring, external_examples=None):
-        """Initialize a FakeFunctionDefinition from a docstring."""
-        summary = cls.get_summary(docstring)
-        if external_examples:
-            examples = doctest.DocTestParser().get_examples(external_examples)
-        else:
-            examples = doctest.DocTestParser().get_examples(docstring)
-
-        return cls(summary=summary,
-                   examples=[InvokationExample.from_doctest_example(e) for e in examples])
+        try:
+            return ast.literal_eval(completion)
+        except Exception as gpt_exception:
+            try:
+                return self.on_failure()
+            except Exception as user_exception:
+                raise user_exception from gpt_exception
 
 
 def RAISE_EXCEPTION():
@@ -126,7 +97,7 @@ class CompletionAPIRunner(Runner):
                  on_failure=RAISE_EXCEPTION,
                  example_filepath=None,
                  num_examples=0,
-                 **completion_kwargs):
+                 **api_kwargs):
         """See `gpt3run` decorator."""
         self.name = f.__name__
 
@@ -142,7 +113,7 @@ class CompletionAPIRunner(Runner):
         self.definition = FakeFunctionDefinition.from_docstring(f.__doc__, external_examples=examples)
 
         self.num_examples = min(num_examples or len(self.definition.examples), len(self.definition.examples))  # Cap to the number of examples
-        self.completion_kwargs = completion_kwargs
+        self.api_kwargs = api_kwargs
 
     def calculate_tokens_per_call(self, *args, **kwargs):
         tokenizer = tiktoken.encoding_for_model(self.engine)
@@ -168,20 +139,16 @@ class CompletionAPIRunner(Runner):
 
         return '\n'.join([doc, examples, call])
 
-    def __call__(self, *args, **kwargs):
-        response = openai.Completion.create(
+    def call_api(self, *args, **kwargs):
+        return openai.Completion.create(
           engine=self.engine,
           prompt = self.make_prompt(*args, **kwargs),
           top_p=1,
-          **self.completion_kwargs
+          **self.api_kwargs
         )
-        try:
-            return ast.literal_eval(response['choices'][0]['text'].strip())
-        except Exception as gpt_exception:
-            try:
-                return self.on_failure()
-            except Exception as user_exception:
-                raise user_exception from gpt_exception
+
+    def api_response_to_text(self, response):
+        return response['choices'][0]['text'].strip()
 
     def _make_test_prompts(self):
         for i in range(len(self.definition.examples)):
@@ -206,7 +173,7 @@ class CompletionAPIRunner(Runner):
               engine=self.engine,
               prompt=prompt,
               top_p=1,
-              **self.completion_kwargs
+              **self.api_kwargs
             )
             try:
                 current = ast.literal_eval(response['choices'][0]['text'].strip())
@@ -226,7 +193,7 @@ class ChatCompletionAPIRunner(Runner):
                  on_failure=RAISE_EXCEPTION,
                  example_filepath=None,
                  num_examples=0,
-                 **chat_kwargs):
+                 **api_kwargs):
         """See `chatgptrun` decorator."""
         self.name = f.__name__
 
@@ -242,7 +209,7 @@ class ChatCompletionAPIRunner(Runner):
         self.definition = FakeFunctionDefinition.from_docstring(f.__doc__, external_examples=examples)
 
         self.num_examples = min(num_examples or len(self.definition.examples), len(self.definition.examples))  # Cap to the number of examples
-        self.chat_kwargs = chat_kwargs
+        self.api_kwargs = api_kwargs
 
     def calculate_tokens_per_call(self, *args, **kwargs):
         tokenizer = tiktoken.encoding_for_model(self.engine)
@@ -256,7 +223,7 @@ class ChatCompletionAPIRunner(Runner):
     def make_prompt(self, *args, _examples=None, **kwargs):
         """Build the prompt for the given set of parameters."""
 
-        welcome = [{"role": "system", "content": f'Python {sys.version} (main, Feb  7 2023, 12:19:31) [GCC 12.2.0] on {sys.platform}\nType "help", "copyright", "credits" or "license" for more information.'}]
+        python_prompt = [{"role": "system", "content": f'Python {sys.version} (main, Feb  7 2023, 12:19:31) [GCC 12.2.0] on {sys.platform}\nType "help", "copyright", "credits" or "license" for more information.'}]
 
         doc = [{"role": "user", "content": f'>>> {self.name}.__doc__'},
                {"role": "assistant", "content": f'{self.definition.summary!r}'}]
@@ -272,21 +239,17 @@ class ChatCompletionAPIRunner(Runner):
         kwargs = [f'{k}={v!r}' for k, v in kwargs.items()]
         call = [{"role": "user", "content": f'>>> {self.name}({", ".join(args + kwargs)})'}]
 
-        return welcome + doc + examples + call
+        return python_prompt + doc + examples + call
 
-    def __call__(self, *args, **kwargs):
-        response = openai.ChatCompletion.create(
+    def call_api(self, *args, **kwargs):
+        return openai.ChatCompletion.create(
           model=self.engine,
           messages=self.make_prompt(*args, **kwargs),
-          **self.chat_kwargs
+          **self.api_kwargs
         )
-        try:
-            return ast.literal_eval(response['choices'][0]['message']['content'].strip())
-        except Exception as gpt_exception:
-            try:
-                return self.on_failure()
-            except Exception as user_exception:
-                raise user_exception from gpt_exception
+
+    def api_response_to_text(self, response):
+        return response['choices'][0]['message']['content'].strip()
 
     def _make_test_prompts(self):
         for i in range(len(self.definition.examples)):
@@ -310,7 +273,7 @@ class ChatCompletionAPIRunner(Runner):
             response = openai.ChatCompletion.create(
               model=self.engine,
               messages=prompt,
-              **self.chat_kwargs
+              **self.api_kwargs
             )
             try:
                 current = ast.literal_eval(response['choices'][0]['message']['content'].strip())

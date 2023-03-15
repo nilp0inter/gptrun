@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from abc import ABC, abstractmethod
 from itertools import chain
 import ast
 import doctest
@@ -11,10 +12,58 @@ import textwrap
 import openai
 import tiktoken
 
-
-__all__ = ['gpt3run', 'RAISE_EXCEPTION']
+__all__ = ['gpt3run', 'chatgptrun', 'RAISE_EXCEPTION']
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+
+class Runner(ABC):
+    @abstractmethod
+    def calculate_tokens_per_call(self, *args, **kwargs):
+        """
+        Return the number of tokens per call.
+
+        Depending on the runner, this can be an exact value or an average value.
+
+        Example: {"result_type": "exact", "value": 100}
+
+        """
+        pass
+
+    @abstractmethod
+    def make_prompt(self, *args, **kwargs):
+        """
+        Return the prompt to use for the API.
+
+        This prompt will be used to generate the output of the function.
+
+        """
+        pass
+
+    @abstractmethod
+    def __call__(self, *args, **kwargs):
+        """
+        Run the function.
+
+        This function will be called instead of the original function.
+
+        """
+        pass
+
+
+    @abstractmethod
+    def test_examples(self):
+        """
+        This function let you test the ability to generalize the task with the
+        examples given in the docstring.
+
+        This works by prompting the model as many times as examples are in the
+        definition, plucking out one example at a time and testing if that call
+        returns the expected output for that example.
+
+        """
+        pass
+
 
 
 @dataclass
@@ -66,54 +115,11 @@ class FakeFunctionDefinition:
                    examples=[InvokationExample.from_doctest_example(e) for e in examples])
 
 
-def gpt3run(*args, **kwargs):
-    """
-    A decorator that transform a function without code but with a docstring
-    containing examples into a function that calls OpenAI's generation API and
-    perform few shot prompting on the examples.
-
-    :param f: The function to transform.
-    :param on_failure: A function to call if GPT3 fails to return a valid output.
-    :param engine: The OpenAI engine to use.
-    :param example_filepath: A path to a file containing external examples instead of using the docstring.
-    :param num_examples: The number of examples to use. If 0, all examples are used.
-    :param completion_kwargs: Additional keyword arguments to pass to the OpenAI API.
-
-    """
-    if kwargs:
-        def gpt3run(f):
-            return functools.wraps(f)(CompletionAPIRunner(f, **kwargs))
-        return gpt3run
-    else:
-        return functools.wraps(args[0])(CompletionAPIRunner(args[0]))
-
-def chatgptrun(*args, **kwargs):
-    """
-    A decorator that transform a function without code but with a docstring
-    containing examples into a function that calls OpenAI's generation API and
-    perform few shot prompting on the examples.
-
-    :param f: The function to transform.
-    :param on_failure: A function to call if GPT3 fails to return a valid output.
-    :param engine: The OpenAI engine to use.
-    :param example_filepath: A path to a file containing external examples instead of using the docstring.
-    :param num_examples: The number of examples to use. If 0, all examples are used.
-    :param completion_kwargs: Additional keyword arguments to pass to the OpenAI API.
-
-    """
-    if kwargs:
-        def chatgptrun(f):
-            return functools.wraps(f)(ChatCompletionAPIRunner(f, **kwargs))
-        return chatgptrun
-    else:
-        return functools.wraps(args[0])(ChatCompletionAPIRunner(args[0]))
-
-
 def RAISE_EXCEPTION():
     raise ValueError("GPT returned bad output")
 
 
-class CompletionAPIRunner:
+class CompletionAPIRunner(Runner):
     """Infere call result using OpenAI's completion API."""
     def __init__(self, f,
                  engine="text-davinci-003",
@@ -213,7 +219,7 @@ class CompletionAPIRunner:
         print('')
 
 
-class ChatCompletionAPIRunner:
+class ChatCompletionAPIRunner(Runner):
     """Infere call result using OpenAI's chat API."""
     def __init__(self, f,
                  engine="gpt-3.5-turbo",
@@ -315,3 +321,33 @@ class ChatCompletionAPIRunner:
             assert current == wanted, f'In test #{i}: {prompt}, and got {current!r} instead of {wanted!r}'
             print('.', end='')
         print('')
+
+
+def _make_runner_decorator(runner):
+    """Make a decorator that transform a function into a runner."""
+    def runner_decorator(*args, **kwargs):
+        """
+        A decorator that transform a function without code but with a docstring
+        containing examples into a function that calls some OpenAI API and
+        perform few shot prompting on the examples.
+
+        :param f: The function to transform.
+        :param on_failure: A function to call if the model fails to return a valid Python output.
+        :param engine: The OpenAI engine to use.
+        :param example_filepath: A path to a file containing external examples instead of using the docstring.
+        :param num_examples: The number of examples to use. If 0, all examples are used.
+        :param api_kwargs: Additional keyword arguments to pass to the OpenAI API.
+
+        """
+        if kwargs:
+            def wrapper(f):
+                return functools.wraps(f)(runner(f, **kwargs))
+            return wrapper
+        else:
+            return functools.wraps(args[0])(runner(args[0]))
+
+    return runner_decorator
+
+
+gpt3run = _make_runner_decorator(CompletionAPIRunner)
+chatgptrun = _make_runner_decorator(ChatCompletionAPIRunner)

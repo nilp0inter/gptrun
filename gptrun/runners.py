@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from functools import lru_cache
 from itertools import chain
 import ast
 import doctest
@@ -63,6 +64,14 @@ class Runner(ABC):
         pass
 
     @abstractmethod
+    def calculate_text_tokens(self, text):
+        """
+        Return the number of tokens for this particular arbitrary text.
+
+        """
+        pass
+
+    @abstractmethod
     def make_prompt(self, *args, _examples=None, **kwargs):
         """
         Return the prompt to use for the API for the given set of examples.
@@ -97,12 +106,20 @@ class Runner(ABC):
         Example: {"result_type": "exact", "value": 100}
 
         """
+        prompt_tokens = None
         if self.num_examples == len(self.definition.examples):  # In this case we can provide an exact answer 
-            return {"result_type": "exact",
-                    "value": self.calculate_prompt_tokens(self.make_prompt(*args, **kwargs))}
+            prompt_tokens = {
+                "result_type": "exact",
+                "value": self.calculate_prompt_tokens(self.make_prompt(*args, **kwargs))
+            }
         else: # We only can approximate the number of tokens per call by sampling
-            return {"result_type": "average",
-                    "value": sum(self.calculate_prompt_tokens(self.make_prompt(*args, **kwargs)) for _ in range(1000)) / 1000}
+            prompt_tokens = {
+                "result_type": "average",
+                "value": sum(self.calculate_prompt_tokens(self.make_prompt(*args, **kwargs)) for _ in range(1000)) / 1000
+            }
+        response_tokens = {"result_type": "average", "value": sum(self.calculate_text_tokens(example.want) for example in self.definition.examples) / len(self.definition.examples)}
+
+        return {"prompt": prompt_tokens, "response": response_tokens}
 
 
     def _deserialize_completion(self, completion):
@@ -178,12 +195,19 @@ class CompletionAPIRunner(Runner):
     """Infere call result using OpenAI's completion API."""
 
     @property
+    @lru_cache(maxsize=1)
+    def tokenizer(self):
+        return tiktoken.encoding_for_model(self.engine)
+
+    @property
     def engine(self):
         return self.api_kwargs.get("engine", "text-davinci-003")
 
+    def calculate_text_tokens(self, text):
+        return len(self.tokenizer.encode(text))
+
     def calculate_prompt_tokens(self, prompt):
-        tokenizer = tiktoken.encoding_for_model(self.engine)
-        return len(tokenizer.encode(prompt))
+        return self.calculate_text_tokens(prompt)
 
     def make_prompt(self, *args, _examples=None, **kwargs):
         """Build the prompt for the given set of parameters."""
@@ -225,17 +249,24 @@ class ChatCompletionAPIRunner(Runner):
     def model(self):
         return self.api_kwargs.get("model", "gpt-3.5-turbo")
 
+    @property
+    @lru_cache(maxsize=1)
+    def tokenizer(self):
+        return tiktoken.encoding_for_model(self.model)
+    
+    def calculate_text_tokens(self, text):
+        return len(self.tokenizer.encode(text))
+
     def calculate_prompt_tokens(self, prompt):
         """
         source: https://github.com/openai/openai-cookbook/blob/main/examples/How_to_count_tokens_with_tiktoken.ipynb
 
         """
-        tokenizer = tiktoken.encoding_for_model(self.model)
         num_tokens = 0
         for message in prompt:
             num_tokens += 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
             for key, value in message.items():
-                num_tokens += len(tokenizer.encode(value))
+                num_tokens += self.calculate_text_tokens(value)
                 if key == "name":  # if there's a name, the role is omitted
                     num_tokens += -1  # role is always required and always 1 token
             num_tokens += 2  # every reply is primed with <im_start>assistant

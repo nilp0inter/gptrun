@@ -132,3 +132,6 @@ if __name__ == '__main__':
     print(f'{color("sun")=}')
     print(f'{spanish_rhyme("sillón")=}')
     print(f'{motto("nilp0inter")=}')
+
+    # You can check the token for a given call
+    print(f'{capital.calculate_tokens_per_call("France")=}')

@@ -61,6 +61,19 @@ capital.test_task_generalization()
 # Call your function
 print(capital("China"))  # Output: "Beijing"
 ```
+
+### Not impressed yet? 🤔
+
+```python
+>>> from examples import is_irony
+>>> is_irony("If you find me offensive. Then I suggest you quit finding me.")
+True
+>>> is_irony("If you find me offensive. Then I suggest you quit.")
+False
+
+```
+
+You can adjust GPT3 parameters using the decorator. See `examples.py`.
 For more advanced usage and customization, check out the examples in `examples.py`.
 
 ## Contributing

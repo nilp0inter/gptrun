@@ -1,8 +1,0 @@
->>> motto("Goliath")  # doctest: +SKIP
-"Very tall, looking for a helmet"
->>> motto("Superman")  # doctest: +SKIP
-"Harder, better, faster, stronger"
->>> motto("Dumbo")  # doctest: +SKIP
-"Don't just fly, soar"
->>> motto("Spiderman")  # doctest: +SKIP
-"With great power comes great responsibility"

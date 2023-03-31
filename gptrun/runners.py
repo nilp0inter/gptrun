@@ -20,6 +20,11 @@ def RAISE_EXCEPTION():
     raise ValueError("GPT returned bad output")
 
 
+def RANDOM_SELECTOR(examples, call_args, call_kwargs, min_examples=None):
+    return random.sample(examples,
+                         k=len(examples) if min_examples is None else min(len(examples), min_examples))
+
+
 # TODO: obtain and set with a context manager
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -32,6 +37,7 @@ class Runner(ABC):
                  on_invalid_response=RAISE_EXCEPTION,
                  external_example_file=None,
                  num_examples=0,
+                 example_selector=RANDOM_SELECTOR,
                  **api_kwargs):
         self.name = function.__name__ if override_name is None else override_name
         self.on_api_error = on_api_error
@@ -42,10 +48,9 @@ class Runner(ABC):
         if external_example_file is not None:
             with open(external_example_file) as example_file:
                 examples = example_file.read()
-
         self.definition = FakeFunctionDefinition.from_docstring(function.__doc__, external_examples=examples)
-
         self.num_examples = min(num_examples or len(self.definition.examples), len(self.definition.examples))  # Cap to the number of examples
+        self.example_selector = example_selector
 
         self.api_kwargs = dict()
         try:
@@ -54,6 +59,7 @@ class Runner(ABC):
                 self.api_kwargs[k[4:]] = v
         except AssertionError as exc:
             raise ValueError from exc
+
 
     @abstractmethod
     def calculate_prompt_tokens(self, prompt):
@@ -214,9 +220,8 @@ class CompletionAPIRunner(Runner):
 
         doc = f'>>> {self.name}.__doc__\n{self.definition.summary!r}'
 
-        example_base = self.definition.examples if _examples is None else _examples
-        num_examples = min(self.num_examples, len(example_base))
-        examples = "\n".join(f'>>> {e.source}\n{e.want}' for e in random.sample(example_base, k=num_examples))
+        example_base = _examples or self.example_selector(self.definition.examples, args, kwargs, min_examples=self.num_examples)
+        examples = "\n".join(f'>>> {e.source}\n{e.want}' for e in example_base)
 
         args = [repr(a) for a in args]
         kwargs = [f'{k}={v!r}' for k, v in kwargs.items()]
@@ -283,11 +288,10 @@ class ChatCompletionAPIRunner(Runner):
                {"role": "assistant", "content": f'{self.definition.summary!r}'}]
 
         # Show some examples to ChatGPT
-        example_base = self.definition.examples if _examples is None else _examples
-        num_examples = min(self.num_examples, len(example_base))
+        example_base = _examples or self.example_selector(self.definition.examples, args, kwargs, min_examples=self.num_examples)
         examples = [({"role": "user", "content": f'>>> {e.source}'},
                      {"role": "assistant", "content": f'{e.want}'})
-                    for e in random.sample(example_base, k=num_examples)]
+                    for e in example_base]
         examples = list(chain.from_iterable(examples))
 
         # Ask about the current call

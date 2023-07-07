@@ -87,11 +87,12 @@ def color(description):
     pass
 
 
-@lru_cache  # You can cache results to save some money
 @chatgptrun
 def weight(text):
     """
     Return the approximate weight of a well known person or character in kilograms.
+
+    If the weight is unknown return an approximation based on the height and gender.
 
     >>> weight("Megan Fox") # doctest: +SKIP
     53
@@ -125,7 +126,9 @@ if __name__ == '__main__':
     #
     # You can use the functions as normal python functions:
     #
-    if weight("Wilson Fisk") > weight("Mahatma Gandhi"):
+    wilson_fisk = weight("Wilson Fisk")
+    mahatma_gandhi = weight("Mahatma Gandhi")
+    if wilson_fisk > mahatma_gandhi:
         print(f"No surprises here: {weight('Wilson Fisk')=}, {weight('Mahatma Gandhi')=}")
 
     print(f'{capital("Australia")=}')

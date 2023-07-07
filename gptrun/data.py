@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-import textwrap
-import doctest
+from itertools import takewhile
 import ast
+import doctest
+import textwrap
 
 
 @dataclass
@@ -42,9 +43,9 @@ class FakeFunctionDefinition:
     def get_summary(docstring):
         """Return the first paragraph of a function's docstring. """
         dedented_docstring = textwrap.dedent(docstring)
-        paragraphs = dedented_docstring.strip().split('\n\n')
-        first_paragraph = paragraphs[0].strip() if paragraphs else ''
-        return ' '.join((l.strip() for l in first_paragraph.splitlines()))
+        paragraphs = dedented_docstring.strip().splitlines()
+        prelude = takewhile(lambda p: not p.startswith('>>>'), paragraphs)
+        return '\n'.join(prelude)
 
     @classmethod
     def from_docstring(cls, docstring, external_examples=None):

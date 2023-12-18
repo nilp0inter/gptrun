@@ -21,8 +21,10 @@ def RAISE_EXCEPTION():
 
 
 def RANDOM_SELECTOR(examples, call_args, call_kwargs, min_examples=None):
-    return random.sample(examples,
-                         k=len(examples) if min_examples is None else min(len(examples), min_examples))
+    return random.sample(
+        examples,
+        k=len(examples) if min_examples is None else min(len(examples), min_examples),
+    )
 
 
 # TODO: obtain and set with a context manager
@@ -30,15 +32,17 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 class Runner(ABC):
-    def __init__(self,
-                 function,
-                 override_name=None,
-                 on_api_error=RAISE_EXCEPTION,
-                 on_invalid_response=RAISE_EXCEPTION,
-                 external_example_file=None,
-                 num_examples=0,
-                 example_selector=RANDOM_SELECTOR,
-                 **api_kwargs):
+    def __init__(
+        self,
+        function,
+        override_name=None,
+        on_api_error=RAISE_EXCEPTION,
+        on_invalid_response=RAISE_EXCEPTION,
+        external_example_file=None,
+        num_examples=0,
+        example_selector=RANDOM_SELECTOR,
+        **api_kwargs,
+    ):
         self.name = function.__name__ if override_name is None else override_name
         self.on_api_error = on_api_error
         self.on_invalid_response = on_invalid_response
@@ -48,18 +52,23 @@ class Runner(ABC):
         if external_example_file is not None:
             with open(external_example_file) as example_file:
                 examples = example_file.read()
-        self.definition = FakeFunctionDefinition.from_docstring(function.__doc__, external_examples=examples)
-        self.num_examples = min(num_examples or len(self.definition.examples), len(self.definition.examples))  # Cap to the number of examples
+        self.definition = FakeFunctionDefinition.from_docstring(
+            function.__doc__, external_examples=examples
+        )
+        self.num_examples = min(
+            num_examples or len(self.definition.examples), len(self.definition.examples)
+        )  # Cap to the number of examples
         self.example_selector = example_selector
 
         self.api_kwargs = dict()
         try:
             for k, v in api_kwargs.items():
-                assert k.startswith('api_'), f"Invalid parameter {k!r}. Extra API kwargs must be prefixed with 'api_'"
+                assert k.startswith(
+                    "api_"
+                ), f"Invalid parameter {k!r}. Extra API kwargs must be prefixed with 'api_'"
                 self.api_kwargs[k[4:]] = v
         except AssertionError as exc:
             raise ValueError from exc
-
 
     @abstractmethod
     def calculate_prompt_tokens(self, prompt):
@@ -113,20 +122,34 @@ class Runner(ABC):
 
         """
         prompt_tokens = None
-        if self.num_examples == len(self.definition.examples):  # In this case we can provide an exact answer 
+        if self.num_examples == len(
+            self.definition.examples
+        ):  # In this case we can provide an exact answer
             prompt_tokens = {
                 "result_type": "exact",
-                "value": self.calculate_prompt_tokens(self.make_prompt(*args, **kwargs))
+                "value": self.calculate_prompt_tokens(
+                    self.make_prompt(*args, **kwargs)
+                ),
             }
-        else: # We only can approximate the number of tokens per call by sampling
+        else:  # We only can approximate the number of tokens per call by sampling
             prompt_tokens = {
                 "result_type": "average",
-                "value": sum(self.calculate_prompt_tokens(self.make_prompt(*args, **kwargs)) for _ in range(1000)) / 1000
+                "value": sum(
+                    self.calculate_prompt_tokens(self.make_prompt(*args, **kwargs))
+                    for _ in range(1000)
+                )
+                / 1000,
             }
-        response_tokens = {"result_type": "average", "value": sum(self.calculate_text_tokens(example.want) for example in self.definition.examples) / len(self.definition.examples)}
+        response_tokens = {
+            "result_type": "average",
+            "value": sum(
+                self.calculate_text_tokens(example.want)
+                for example in self.definition.examples
+            )
+            / len(self.definition.examples),
+        }
 
         return {"prompt": prompt_tokens, "response": response_tokens}
-
 
     def _deserialize_completion(self, completion):
         try:
@@ -163,13 +186,20 @@ class Runner(ABC):
         """
         examples = list()
         for example in self.definition.examples:
-            function_name = example.source.split('(')[0].strip()
-            examples.append((function_name, example.call_args_obj, example.call_kwargs_obj, example.want_obj))
+            function_name = example.source.split("(")[0].strip()
+            examples.append(
+                (
+                    function_name,
+                    example.call_args_obj,
+                    example.call_kwargs_obj,
+                    example.want_obj,
+                )
+            )
 
         return pytest.mark.parametrize(
-            'function_name,call_args,call_kwargs,return_value',
-            examples)(*args, **kwargs)
-    
+            "function_name,call_args,call_kwargs,return_value", examples
+        )(*args, **kwargs)
+
     def test_task_generalization(self):
         """
         This function is a pytest test that let you test the ability to
@@ -182,19 +212,29 @@ class Runner(ABC):
         Please note that THIS WILL PERFORM MANY CALLS to OpenAI's API.
 
         """
+
         def _make_test_prompts():
             for i in range(len(self.definition.examples)):
-                preamble = self.definition.examples[:i] + self.definition.examples[i+1:]
+                preamble = (
+                    self.definition.examples[:i] + self.definition.examples[i + 1 :]
+                )
                 missing = self.definition.examples[i]
                 if missing.options.get(doctest.SKIP, None):
                     continue
-                yield (self.make_prompt(*missing.call_args, _examples=preamble, **missing.call_kwargs), missing.want_obj)
+                yield (
+                    self.make_prompt(
+                        *missing.call_args, _examples=preamble, **missing.call_kwargs
+                    ),
+                    missing.want_obj,
+                )
 
         for i, (prompt, wanted) in enumerate(_make_test_prompts()):
             response = self.call_api(prompt)
             completion = self.api_response_to_text(response)
             current = self._deserialize_completion(completion)
-            assert current == wanted, f'In test #{i}: {prompt}, and got {current!r} instead of {wanted!r}'
+            assert (
+                current == wanted
+            ), f"In test #{i}: {prompt}, and got {current!r} instead of {wanted!r}"
 
 
 class CompletionAPIRunner(Runner):
@@ -218,25 +258,26 @@ class CompletionAPIRunner(Runner):
     def make_prompt(self, *args, _examples=None, **kwargs):
         """Build the prompt for the given set of parameters."""
 
-        doc = f'>>> {self.name}.__doc__\n{self.definition.summary!r}'
+        doc = f">>> {self.name}.__doc__\n{self.definition.summary!r}"
 
-        example_base = _examples or self.example_selector(self.definition.examples, args, kwargs, min_examples=self.num_examples)
-        examples = "\n".join(f'>>> {e.source}\n{e.want}' for e in example_base)
+        example_base = _examples or self.example_selector(
+            self.definition.examples, args, kwargs, min_examples=self.num_examples
+        )
+        examples = "\n".join(f">>> {e.source}\n{e.want}" for e in example_base)
 
         args = [repr(a) for a in args]
-        kwargs = [f'{k}={v!r}' for k, v in kwargs.items()]
+        kwargs = [f"{k}={v!r}" for k, v in kwargs.items()]
         call = f'>>> {self.name}({", ".join(args + kwargs)})'
 
-        return '\n'.join([doc, examples, call])
+        return "\n".join([doc, examples, call])
 
     def call_api(self, prompt):
         return openai.Completion.create(
-          prompt = prompt,
-          **{**{"engine": self.engine}, **self.api_kwargs}
+            prompt=prompt, **{**{"engine": self.engine}, **self.api_kwargs}
         )
 
     def api_response_to_text(self, response):
-        return response['choices'][0]['text'].strip()
+        return response["choices"][0]["text"].strip()
 
 
 class ChatCompletionAPIRunner(Runner):
@@ -258,7 +299,7 @@ class ChatCompletionAPIRunner(Runner):
     @lru_cache(maxsize=1)
     def tokenizer(self):
         return tiktoken.encoding_for_model(self.model)
-    
+
     def calculate_text_tokens(self, text):
         return len(self.tokenizer.encode(text))
 
@@ -269,7 +310,9 @@ class ChatCompletionAPIRunner(Runner):
         """
         num_tokens = 0
         for message in prompt:
-            num_tokens += 4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
+            num_tokens += (
+                4  # every message follows <im_start>{role/name}\n{content}<im_end>\n
+            )
             for key, value in message.items():
                 num_tokens += self.calculate_text_tokens(value)
                 if key == "name":  # if there's a name, the role is omitted
@@ -281,38 +324,53 @@ class ChatCompletionAPIRunner(Runner):
         """Build the prompt for the given set of parameters."""
 
         # <ominious-voice>You are a Python interpreter, you are a Python interpreter...</ominious-voice>
-        python_prompt = [{"role": "system", "content": f'Python {sys.version} (main, Feb  7 2023, 12:19:31) [GCC 12.2.0] on {sys.platform}\nType "help", "copyright", "credits" or "license" for more information.'}]
+        python_prompt = [
+            {
+                "role": "system",
+                "content": f'Python {sys.version} (main, Feb  7 2023, 12:19:31) [GCC 12.2.0] on {sys.platform}\nType "help", "copyright", "credits" or "license" for more information.',
+            }
+        ]
 
         # Show the function docstring summary
-        doc = [{"role": "user", "content": f'>>> {self.name}.__doc__'},
-               {"role": "assistant", "content": f'{self.definition.summary!r}'}]
+        doc = [
+            {"role": "user", "content": f">>> {self.name}.__doc__"},
+            {"role": "assistant", "content": f"{self.definition.summary!r}"},
+        ]
 
         # Show some examples to ChatGPT
-        example_base = _examples or self.example_selector(self.definition.examples, args, kwargs, min_examples=self.num_examples)
-        examples = [({"role": "user", "content": f'>>> {e.source}'},
-                     {"role": "assistant", "content": f'{e.want}'})
-                    for e in example_base]
+        example_base = _examples or self.example_selector(
+            self.definition.examples, args, kwargs, min_examples=self.num_examples
+        )
+        examples = [
+            (
+                {"role": "user", "content": f">>> {e.source}"},
+                {"role": "assistant", "content": f"{e.want}"},
+            )
+            for e in example_base
+        ]
         examples = list(chain.from_iterable(examples))
 
         # Ask about the current call
         args = [repr(a) for a in args]
-        kwargs = [f'{k}={v!r}' for k, v in kwargs.items()]
-        call = [{"role": "user", "content": f'>>> {self.name}({", ".join(args + kwargs)})'}]
+        kwargs = [f"{k}={v!r}" for k, v in kwargs.items()]
+        call = [
+            {"role": "user", "content": f'>>> {self.name}({", ".join(args + kwargs)})'}
+        ]
 
         return python_prompt + doc + examples + call
 
     def call_api(self, prompt):
         return openai.ChatCompletion.create(
-          messages=prompt,
-          **{**{"model": self.model}, **self.api_kwargs}
+            messages=prompt, **{**{"model": self.model}, **self.api_kwargs}
         )
 
     def api_response_to_text(self, response):
-        return response['choices'][0]['message']['content'].strip()
+        return response["choices"][0]["message"]["content"].strip()
 
 
 def _make_runner_decorator(runner):
     """Make a decorator that transform a function into a runner."""
+
     def runner_decorator(*args, **kwargs):
         """
         A decorator that transform a function without code but with a docstring
@@ -328,8 +386,10 @@ def _make_runner_decorator(runner):
 
         """
         if kwargs:
+
             def wrapper(f):
                 return functools.wraps(f)(runner(f, **kwargs))
+
             return wrapper
         else:
             return functools.wraps(args[0])(runner(args[0]))

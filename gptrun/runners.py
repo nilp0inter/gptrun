@@ -163,7 +163,7 @@ class Runner(ABC):
         """
         examples = list()
         for example in self.definition.examples:
-            function_name = example.source.split('(')[0]
+            function_name = example.source.split('(')[0].strip()
             examples.append((function_name, example.call_args_obj, example.call_kwargs_obj, example.want_obj))
 
         return pytest.mark.parametrize(

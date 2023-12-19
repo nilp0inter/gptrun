@@ -17,6 +17,19 @@ class InvokationExample:
     options: dict
 
     @classmethod
+    def from_call(cls, name, *call_args_obj, _return=None, _options=None, **call_kwargs_obj):
+        return cls(
+            source=f"{name}({', '.join(repr(a) for a in call_args_obj)}, {', '.join(f'{k}={repr(v)}' for k, v in call_kwargs_obj.items())})",
+            call_args=[repr(a) for a in call_args_obj],
+            call_args_obj=list(call_args_obj),
+            call_kwargs={k: repr(v) for k, v in call_kwargs_obj.items()},
+            call_kwargs_obj=call_kwargs_obj,
+            want_obj=_return,
+            want=repr(_return),
+            options=_options or {},
+        )
+
+    @classmethod
     def from_doctest_example(cls, example):
         source = ast.parse(example.source).body[0]
         if not isinstance(source.value, ast.Call):
@@ -46,7 +59,8 @@ class FakeFunctionDefinition:
         """Return the first paragraph of a function's docstring."""
         dedented_docstring = textwrap.dedent(docstring)
         paragraphs = dedented_docstring.strip().splitlines()
-        prelude = takewhile(lambda p: not p.startswith(">>>"), paragraphs)
+        prelude = list(takewhile(lambda p: not p.startswith(">>>"), paragraphs))
+        prelude += ["Never raises an exception."]
         return "\n".join(prelude)
 
     @classmethod

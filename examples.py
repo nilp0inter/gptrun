@@ -1,6 +1,9 @@
 from gptrun import gpt3run, chatgptrun
 from functools import lru_cache
 
+from gptrun.data import InvokationExample
+
+
 @gpt3run
 def is_irony(text):
     """
@@ -87,6 +90,14 @@ def color(description):
     pass
 
 
+weight_examples = [
+    InvokationExample.from_call("weight", "Megan Fox", _return=53),
+    InvokationExample.from_call("weight", "Anne Hathaway", _return=59),
+    InvokationExample.from_call("weight", "Amy Adams", _return=52),
+    InvokationExample.from_call("weight", "George Washington", _return=87),
+    InvokationExample.from_call("weight", "Harrison Ford", _return=83),
+]
+
 @chatgptrun
 def weight(text):
     """
@@ -94,16 +105,6 @@ def weight(text):
 
     If the weight is unknown return an approximation based on the height and gender.
 
-    >>> weight("Megan Fox") # doctest: +SKIP
-    53
-    >>> weight("Anne Hathaway") # doctest: +SKIP
-    59
-    >>> weight("Amy Adams") # doctest: +SKIP
-    52
-    >>> weight("George Washington") # doctest: +SKIP
-    87
-    >>> weight("Harrison Ford") # doctest: +SKIP
-    83
     """
     pass
 
@@ -121,15 +122,18 @@ if __name__ == '__main__':
     # You can test your functions like so...
     #
     print("TESTING 'color':")
-    color.test_task_generalization()
+    try:
+        color.test_task_generalization()
+    except Exception as e:
+        print(e)
 
     #
     # You can use the functions as normal python functions:
     #
-    wilson_fisk = weight("Wilson Fisk")
-    mahatma_gandhi = weight("Mahatma Gandhi")
+    wilson_fisk = weight("Wilson Fisk", _examples=weight_examples)
+    mahatma_gandhi = weight("Mahatma Gandhi", _examples=weight_examples)
     if wilson_fisk > mahatma_gandhi:
-        print(f"No surprises here: {weight('Wilson Fisk')=}, {weight('Mahatma Gandhi')=}")
+        print(f"No surprises here: {wilson_fisk=}, {mahatma_gandhi=}")
 
     print(f'{capital("Australia")=}')
     print(f'{color("sun")=}')

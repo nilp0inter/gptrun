@@ -17,9 +17,9 @@ class InvokationExample:
     options: dict
 
     @classmethod
-    def from_call(cls, name, *call_args_obj, _return=None, _options=None, **call_kwargs_obj):
+    def from_call(cls, _name, *call_args_obj, _return=None, _options=None, **call_kwargs_obj):
         return cls(
-            source=f"{name}({', '.join(repr(a) for a in call_args_obj)}, {', '.join(f'{k}={repr(v)}' for k, v in call_kwargs_obj.items())})",
+            source=f"{_name}({', '.join(repr(a) for a in call_args_obj)}, {', '.join(f'{k}={repr(v)}' for k, v in call_kwargs_obj.items())})",
             call_args=[repr(a) for a in call_args_obj],
             call_args_obj=list(call_args_obj),
             call_kwargs={k: repr(v) for k, v in call_kwargs_obj.items()},

@@ -337,9 +337,12 @@ class ChatCompletionAPIRunner(Runner):
         ]
 
         # Show some examples to ChatGPT
-        example_base = _examples or self.example_selector(
-            self.definition.examples, args, kwargs, min_examples=self.num_examples
+        example_base = self.example_selector(
+            _examples if _examples is not None else self.definition.examples,
+            args, kwargs, min_examples=self.num_examples
         )
+        if self.num_examples is not None:
+            example_base = example_base[:min(self.num_examples, len(example_base))]
         examples = [
             (
                 {"role": "user", "content": f">>> {e.source}"},

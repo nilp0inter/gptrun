@@ -260,6 +260,8 @@ class CompletionAPIRunner(Runner):
             _examples if _examples is not None else self.definition.examples,
             args, kwargs, min_examples=self.num_examples
         )
+        if self.num_examples is not None:
+            example_base = example_base[:min(self.num_examples, len(example_base))]
         examples = "\n".join(f">>> {e.source}\n{e.want}" for e in example_base)
 
         args = [repr(a) for a in args]

@@ -39,7 +39,7 @@ class Runner(ABC):
         on_api_error=RAISE_EXCEPTION,
         on_invalid_response=RAISE_EXCEPTION,
         external_example_file=None,
-        num_examples=0,
+        num_examples=None,
         example_selector=RANDOM_SELECTOR,
         **api_kwargs,
     ):
@@ -55,9 +55,7 @@ class Runner(ABC):
         self.definition = FakeFunctionDefinition.from_docstring(
             function.__doc__, external_examples=examples
         )
-        self.num_examples = min(
-            num_examples or len(self.definition.examples), len(self.definition.examples)
-        )  # Cap to the number of examples
+        self.num_examples = num_examples
         self.example_selector = example_selector
 
         self.api_kwargs = dict()
@@ -122,9 +120,7 @@ class Runner(ABC):
 
         """
         prompt_tokens = None
-        if self.num_examples == len(
-            self.definition.examples
-        ):  # In this case we can provide an exact answer
+        if self.num_examples is None:  # In this case we can provide an exact answer
             prompt_tokens = {
                 "result_type": "exact",
                 "value": self.calculate_prompt_tokens(
@@ -260,8 +256,9 @@ class CompletionAPIRunner(Runner):
 
         doc = f">>> {self.name}.__doc__\n{self.definition.summary!r}"
 
-        example_base = _examples or self.example_selector(
-            self.definition.examples, args, kwargs, min_examples=self.num_examples
+        example_base = self.example_selector(
+            _examples if _examples is not None else self.definition.examples,
+            args, kwargs, min_examples=self.num_examples
         )
         examples = "\n".join(f">>> {e.source}\n{e.want}" for e in example_base)
 
@@ -381,7 +378,7 @@ def _make_runner_decorator(runner):
         :param on_failure: A function to call if the model fails to return a valid Python output.
         :param engine: The OpenAI engine to use.
         :param external_example_file: A path to a file containing external examples instead of using the docstring.
-        :param num_examples: The number of examples to use. If 0, all examples are used.
+        :param num_examples: The number of examples to use. If None, all examples are used.
         :param api_kwargs: Additional keyword arguments to pass to the OpenAI API.
 
         """

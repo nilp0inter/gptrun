@@ -28,6 +28,9 @@ def RANDOM_SELECTOR(examples, call_args, call_kwargs, min_examples=None):
 
 
 # TODO: obtain and set with a context manager
+openai.api_type = os.getenv("OPENAI_API_TYPE", openai.api_type)
+openai.api_base = os.getenv("OPENAI_API_BASE", openai.api_base)
+openai.api_version = os.getenv("OPENAI_API_VERSION", openai.api_version)
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 

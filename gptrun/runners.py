@@ -35,6 +35,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 class Runner(ABC):
+    default_system_prompt = None
     def __init__(
         self,
         function,
@@ -44,11 +45,13 @@ class Runner(ABC):
         external_example_file=None,
         num_examples=None,
         example_selector=RANDOM_SELECTOR,
+        system_prompt=None,
         **api_kwargs,
     ):
         self.name = function.__name__ if override_name is None else override_name
         self.on_api_error = on_api_error
         self.on_invalid_response = on_invalid_response
+        self.system_prompt = self.default_system_prompt if system_prompt is None else system_prompt
 
         # Examples can be provided from an external `external_example_file` or as a docstring body.
         examples = None
@@ -292,6 +295,7 @@ class ChatCompletionAPIRunner(Runner):
     https://platform.openai.com/docs/api-reference/chat
 
     """
+    default_system_prompt = f'Python {sys.version} (main, Feb  7 2023, 12:19:31) [GCC 12.2.0] on {sys.platform}\nType "help", "copyright", "credits" or "license" for more information.',
 
     @property
     def model(self):
@@ -329,7 +333,7 @@ class ChatCompletionAPIRunner(Runner):
         python_prompt = [
             {
                 "role": "system",
-                "content": f'Python {sys.version} (main, Feb  7 2023, 12:19:31) [GCC 12.2.0] on {sys.platform}\nType "help", "copyright", "credits" or "license" for more information.',
+                "content": self.system_prompt,
             }
         ]
 

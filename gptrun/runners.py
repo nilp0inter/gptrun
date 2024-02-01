@@ -295,7 +295,7 @@ class ChatCompletionAPIRunner(Runner):
     https://platform.openai.com/docs/api-reference/chat
 
     """
-    default_system_prompt = f'Python {sys.version} (main, Feb  7 2023, 12:19:31) [GCC 12.2.0] on {sys.platform}\nType "help", "copyright", "credits" or "license" for more information.',
+    default_system_prompt = f'Python {sys.version} (main, Feb  7 2023, 12:19:31) [GCC 12.2.0] on {sys.platform}\nType "help", "copyright", "credits" or "license" for more information.'
 
     @property
     def model(self):

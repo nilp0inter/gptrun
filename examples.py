@@ -1,10 +1,12 @@
-from gptrun import gpt3run, chatgptrun
+import json
+
+from gptrun import chatgptrun
 from functools import lru_cache
 
 from gptrun.data import InvokationExample
 
 
-@gpt3run
+@chatgptrun
 def is_irony(text):
     """
     Returns True if text contains irony, False otherwise.
@@ -25,7 +27,7 @@ def is_irony(text):
     pass
 
 
-@gpt3run(api_engine="text-curie-001")  # Use other engines for cost and/or precision
+@chatgptrun
 def capital(country):
     """
     Return the capital of a country.
@@ -40,7 +42,7 @@ def capital(country):
     pass
 
 
-@gpt3run
+@chatgptrun
 def spanish_rhyme(word):
     """
     Return a rhyme given a word (in Spanish).
@@ -56,7 +58,7 @@ def spanish_rhyme(word):
     
 
 
-@gpt3run(on_invalid_response=lambda:None)  # If you don't want to raise an exception if GPT3 returns nonsense
+@chatgptrun(on_invalid_response=lambda:None)  # If you don't want to raise an exception if GPT3 returns nonsense
 def sentiment(text):
     """
     Return the general sentiment of the phrase as 'positive', 'neutral' or 'negative'.
@@ -73,7 +75,7 @@ def sentiment(text):
     pass
 
 
-@gpt3run  # Use '# doctest: +SKIP' on non-exact samples to avoid failing tests
+@chatgptrun  # Use '# doctest: +SKIP' on non-exact samples to avoid failing tests
 def color(description):
     """
     Return the lowercase CSS color code by its description.
@@ -98,7 +100,7 @@ weight_examples = [
     InvokationExample.from_call("weight", "Harrison Ford", _return=83),
 ]
 
-@chatgptrun
+@chatgptrun(api_model="gpt-4")
 def weight(text):
     """
     Return the approximate weight of a well known person or character in kilograms.
@@ -109,7 +111,7 @@ def weight(text):
     pass
 
 
-@gpt3run(external_example_file="./motto.examples", num_examples=3)
+@chatgptrun(external_example_file="./motto.examples", num_examples=3)
 def motto(character):
     """
     Returns an appropriate motto for the user.

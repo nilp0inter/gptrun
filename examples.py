@@ -144,3 +144,7 @@ if __name__ == '__main__':
 
     # You can check the token for a given call
     print(f'{capital.calculate_tokens_per_call("France")=}')
+
+    # You can also see the call details
+    result = capital.call_with_details("Tunisia")
+    print(json.dumps(result, indent=2))

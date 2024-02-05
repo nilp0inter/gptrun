@@ -178,6 +178,28 @@ class Runner(ABC):
 
         return self._deserialize_completion(completion)
 
+    def call_with_details(self, *args, **kwargs):
+        """
+        Execute the call as per __call__ and return the result along the call data.
+
+        """
+        prompt = self.make_prompt(*args, **kwargs)
+        try:
+            response = self.call_api(prompt)
+        except Exception as api_exception:
+            try:
+                return self.on_api_error()
+            except Exception as user_exception:
+                raise user_exception from api_exception
+
+        completion = self.api_response_to_text(response)
+
+        deserialized_completion = self._deserialize_completion(completion)
+
+        return {"request": prompt,
+                "response": response,
+                "result": deserialized_completion}
+
     def test_prompt_examples(self, *args, **kwargs):
         """
         This function returns a pytest parametrizer decorator that let you test

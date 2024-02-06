@@ -279,10 +279,13 @@ class CompletionAPIRunner(Runner):
     def calculate_prompt_tokens(self, prompt):
         return self.calculate_text_tokens(prompt)
 
-    def make_prompt(self, *args, _examples=None, **kwargs):
+    def make_prompt(self, *args, _name=None, _summary=None, _examples=None, **kwargs):
         """Build the prompt for the given set of parameters."""
 
-        doc = f">>> {self.name}.__doc__\n{self.definition.summary!r}"
+        name = _name if not None else self.name
+        summary = _summary if not None else self.definition.summary
+
+        doc = f">>> {name}.__doc__\n{summary!r}"
 
         example_base = self.example_selector(
             _examples if _examples is not None else self.definition.examples,
@@ -294,7 +297,7 @@ class CompletionAPIRunner(Runner):
 
         args = [repr(a) for a in args]
         kwargs = [f"{k}={v!r}" for k, v in kwargs.items()]
-        call = f'>>> {self.name}({", ".join(args + kwargs)})'
+        call = f'>>> {name}({", ".join(args + kwargs)})'
 
         return "\n".join([doc, examples, call])
 
@@ -348,8 +351,11 @@ class ChatCompletionAPIRunner(Runner):
             num_tokens += 2  # every reply is primed with <im_start>assistant
         return num_tokens
 
-    def make_prompt(self, *args, _examples=None, **kwargs):
+    def make_prompt(self, *args, _name=None, _summary=None, _examples=None, **kwargs):
         """Build the prompt for the given set of parameters."""
+
+        name = _name if not None else self.name
+        summary = _summary if not None else self.definition.summary
 
         # <ominious-voice>You are a Python interpreter, you are a Python interpreter...</ominious-voice>
         python_prompt = [
@@ -361,8 +367,8 @@ class ChatCompletionAPIRunner(Runner):
 
         # Show the function docstring summary
         doc = [
-            {"role": "user", "content": f">>> {self.name}.__doc__"},
-            {"role": "assistant", "content": f"{self.definition.summary!r}"},
+            {"role": "user", "content": f">>> {name}.__doc__"},
+            {"role": "assistant", "content": f"{summary!r}"},
         ]
 
         # Show some examples to ChatGPT
@@ -385,7 +391,7 @@ class ChatCompletionAPIRunner(Runner):
         args = [repr(a) for a in args]
         kwargs = [f"{k}={v!r}" for k, v in kwargs.items()]
         call = [
-            {"role": "user", "content": f'>>> {self.name}({", ".join(args + kwargs)})'}
+            {"role": "user", "content": f'>>> {name}({", ".join(args + kwargs)})'}
         ]
 
         return python_prompt + doc + examples + call

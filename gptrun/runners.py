@@ -368,7 +368,7 @@ class ChatCompletionAPIRunner(Runner):
         # Show the function docstring summary
         doc = [
             {"role": "user", "content": f">>> {name}.__doc__"},
-            {"role": "assistant", "content": f"{summary!r}"},
+            {"role": "assistant", "content": repr(summary),
         ]
 
         # Show some examples to ChatGPT

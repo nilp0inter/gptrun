@@ -282,8 +282,8 @@ class CompletionAPIRunner(Runner):
     def make_prompt(self, *args, _name=None, _summary=None, _examples=None, **kwargs):
         """Build the prompt for the given set of parameters."""
 
-        name = _name if not None else self.name
-        summary = _summary if not None else self.definition.summary
+        name = _name if _name is not None else self.name
+        summary = _summary if _summary is not None else self.definition.summary
 
         doc = f">>> {name}.__doc__\n{summary!r}"
 
@@ -354,8 +354,8 @@ class ChatCompletionAPIRunner(Runner):
     def make_prompt(self, *args, _name=None, _summary=None, _examples=None, **kwargs):
         """Build the prompt for the given set of parameters."""
 
-        name = _name if not None else self.name
-        summary = _summary if not None else self.definition.summary
+        name = _name if _name is not None else self.name
+        summary = _summary if _summary is not None else self.definition.summary
 
         # <ominious-voice>You are a Python interpreter, you are a Python interpreter...</ominious-voice>
         python_prompt = [
